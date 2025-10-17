@@ -1,7 +1,7 @@
 "use client";
 
-import ChevronUpIcon from "@/assets/icon/ic_chevron_up_19.svg";
 import { useState } from "react";
+import ChevronUpIcon from "@/assets/icon/ic_chevron_up_19.svg";
 
 interface ExpandableCategoryProps {
   title: string;
@@ -22,23 +22,24 @@ const ExpandableCategory = ({
 
   return (
     <div className="flex flex-col">
-      <div
+      <button
+        type="button"
         className="px-5 py-[18px] flex justify-between items-center cursor-pointer"
         onClick={handleToggle}
       >
-        <h2
+        <span
           className={`select-none font-medium ${
             isExpanded ? "text-[#133A1B]" : "text-black"
           }`}
         >
           {title}
-        </h2>
+        </span>
         <ChevronUpIcon
           className={`transition-transform duration-300 ${
             isExpanded ? "rotate-0" : "rotate-180"
           }`}
         />
-      </div>
+      </button>
       {!isLast && !isExpanded && (
         <div className="mx-5 border-b border-[#D9D9D9]"></div>
       )}
@@ -48,9 +49,10 @@ const ExpandableCategory = ({
         }`}
       >
         <div className="py-5 px-6 flex flex-col gap-4">
-          {content.map((item, index) => (
+          {content.map((item) => (
             <button
-              key={index}
+              type="button"
+              key={item}
               className="text-sm text-black text-left cursor-pointer"
             >
               {item}
