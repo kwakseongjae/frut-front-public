@@ -1,11 +1,26 @@
 "use client";
 
-import { useId } from "react";
+import { useRouter } from "next/navigation";
+import { useId, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import KakaoIcon from "@/assets/icon/ic_social_kakaotalk.svg";
 import NaverIcon from "@/assets/icon/ic_social_naver.svg";
+import { useAuth } from "@/contexts/AuthContext";
 
-function SignInPage() {
+const SignInPage = () => {
+  const router = useRouter();
+  const { login } = useAuth();
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleLogin = () => {
+    // 간단한 로그인 로직 (실제로는 서버와 통신해야 함)
+    if (id.trim() && password.trim()) {
+      login();
+      router.push("/");
+    }
+  };
+
   return (
     <div className="flex flex-col">
       {/* 헤더 영역 */}
@@ -34,6 +49,8 @@ function SignInPage() {
                 type="text"
                 placeholder="아이디를 입력해주세요"
                 id={useId()}
+                value={id}
+                onChange={(e) => setId(e.target.value)}
                 className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
               />
             </div>
@@ -50,6 +67,8 @@ function SignInPage() {
                 type="password"
                 placeholder="비밀번호를 입력해주세요"
                 id={useId()}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
               />
             </div>
@@ -57,6 +76,7 @@ function SignInPage() {
           <div className="flex flex-col gap-4">
             <button
               type="button"
+              onClick={handleLogin}
               className="cursor-pointer w-full py-[14px] bg-[#133A1B] text-sm font-semibold text-white"
             >
               로그인
@@ -91,6 +111,6 @@ function SignInPage() {
       </div>
     </div>
   );
-}
+};
 
 export default SignInPage;

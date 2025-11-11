@@ -11,7 +11,9 @@
 		"format": "biome format --write ."
 	},
 	"dependencies": {
+		"@gsap/react": "^2.1.2",
 		"embla-carousel-react": "^8.6.0",
+		"gsap": "^3.13.0",
 		"next": "15.5.2",
 		"pretendard": "^1.3.9",
 		"react": "19.1.0",

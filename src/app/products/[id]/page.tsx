@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import CartIcon from "@/assets/icon/ic_cart_green_24.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ChevronRightIcon from "@/assets/icon/ic_chevron_right_black_24.svg";
 import ChevronUpIcon from "@/assets/icon/ic_chevron_up_19.svg";
@@ -23,6 +24,7 @@ export default function ProductDetailPage() {
   // const productId = params.id as string;
   const [activeTab, setActiveTab] = useState<"detail" | "review">("detail");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState<
     Array<{
       id: string;
@@ -103,11 +105,24 @@ export default function ProductDetailPage() {
     // 장바구니 담기 로직
     console.log("장바구니에 담기:", selectedOptions);
     handleModalClose();
+    setIsCartModalOpen(true);
   };
 
   const handlePurchase = () => {
     // 구매하기 로직 - 결제 페이지로 이동
     router.push("/ordersheet");
+  };
+
+  const handleCartModalClose = () => {
+    setIsCartModalOpen(false);
+  };
+
+  const handleContinueShopping = () => {
+    setIsCartModalOpen(false);
+  };
+
+  const handleGoToCart = () => {
+    router.push("/cart");
   };
 
   const getTotalQuantity = () => {
@@ -487,6 +502,61 @@ export default function ProductDetailPage() {
                   className="flex-1 py-3 bg-[#133A1B] text-white font-semibold text-sm  disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   구매하기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 장바구니 담기 완료 모달 */}
+      {isCartModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:justify-center">
+          {/* 백드롭 */}
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={handleCartModalClose}
+            aria-label="모달 닫기"
+          />
+
+          {/* 모달 컨텐츠 */}
+          <div className="relative w-full sm:w-[640px] bg-white rounded-t-2xl transform transition-transform duration-300 ease-out">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-end p-5">
+              <button
+                type="button"
+                onClick={handleCartModalClose}
+                className="p-1"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            {/* 메시지 텍스트 */}
+            <div className="pt-2 pb-4 flex items-center justify-center space-x-2">
+              <CartIcon />
+              <p className="text-center text-lg font-medium text-[#262626]">
+                장바구니에 상품을 담았습니다
+              </p>
+            </div>
+
+            {/* 액션 버튼들 */}
+            <div className="p-5">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleContinueShopping}
+                  className="flex-1 py-3 border border-[#133A1B] text-[#133A1B] font-semibold text-sm"
+                >
+                  계속 둘러보기
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGoToCart}
+                  className="flex-1 py-3 bg-[#133A1B] text-white font-semibold text-sm"
+                >
+                  장바구니 바로가기
                 </button>
               </div>
             </div>
