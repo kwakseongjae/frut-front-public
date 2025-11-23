@@ -15,20 +15,20 @@ export default function FarmsPage() {
 	const [farmData, setFarmData] = useState(initialFarmData);
 	// 초기 팔로잉 상태였던 농장 ID 추적
 	const [initialFollowingIds] = useState(
-		new Set(initialFarmData.map((farm) => farm.id))
+		new Set(initialFarmData.map((farm) => farm.id)),
 	);
 
 	const handleFollowToggle = (id: number) => {
 		setFarmData((prev) =>
 			prev.map((farm) =>
-				farm.id === id ? { ...farm, isFollowing: !farm.isFollowing } : farm
-			)
+				farm.id === id ? { ...farm, isFollowing: !farm.isFollowing } : farm,
+			),
 		);
 	};
 
 	// 초기 팔로잉 상태였던 농장은 언팔로우되어도 계속 표시
 	const displayedFarms = farmData.filter(
-		(farm) => farm.isFollowing || initialFollowingIds.has(farm.id)
+		(farm) => farm.isFollowing || initialFollowingIds.has(farm.id),
 	);
 
 	return (

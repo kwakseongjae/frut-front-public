@@ -1,11 +1,29 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+
 interface FarmAvatarProps {
 	rank: number;
 	farmName: string;
+	farmId?: number;
 }
 
-const FarmAvatar = ({ rank, farmName }: FarmAvatarProps) => {
+const FarmAvatar = ({ rank, farmName, farmId }: FarmAvatarProps) => {
+	const router = useRouter();
+
+	const handleClick = () => {
+		if (farmId) {
+			router.push(`/farms/${farmId}`);
+		}
+	};
+
 	return (
-		<div className="flex flex-col items-center gap-2 max-w-[80px]">
+		<button
+			type="button"
+			className="flex flex-col items-center gap-2 max-w-[80px] cursor-pointer bg-transparent border-none p-0"
+			onClick={handleClick}
+			aria-label={`${farmName} 농장 프로필 보기`}
+		>
 			<div className="w-15 h-15 bg-[#D9D9D9] rounded-full"></div>
 			<div className="text-center flex">
 				<span className="text-sm font-semibold text-[#262626]">{rank}</span>
@@ -13,7 +31,7 @@ const FarmAvatar = ({ rank, farmName }: FarmAvatarProps) => {
 					{farmName}
 				</span>
 			</div>
-		</div>
+		</button>
 	);
 };
 

@@ -28,12 +28,12 @@ const FarmCard = ({
 				onClick={handleClick}
 				className={`rounded cursor-pointer py-[6px] px-5 text-xs font-semibold flex-shrink-0 ${
 					isFollowing
-						? "text-white bg-[#133A1B]"
-						: "text-[#262626] bg-[#F5F5F5]"
+						? "text-[#262626] bg-[#F5F5F5]"
+						: "text-white bg-[#133A1B]"
 				}`}
-				aria-label={isFollowing ? "팔로우" : "팔로잉"}
+				aria-label={isFollowing ? "팔로잉 취소" : "팔로우"}
 			>
-				{isFollowing ? "팔로우" : "팔로잉"}
+				{isFollowing ? "팔로잉" : "팔로우"}
 			</button>
 		</div>
 	);
