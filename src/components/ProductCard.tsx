@@ -135,8 +135,8 @@ function ProductCard({
 					</div>
 				)}
 
-				{/* 특가가 아닌 경우 - 우측 하단에 장바구니 아이콘 */}
-				{!isSpecialOffer && !hideCartButton && (
+				{/* 우측 하단에 장바구니 아이콘 */}
+				{!hideCartButton && (
 					<div className="absolute right-3 bottom-3">
 						<button
 							ref={cartButtonRef}

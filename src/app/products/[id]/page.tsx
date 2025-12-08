@@ -21,6 +21,7 @@ import { fruits } from "@/assets/images/dummy";
 import ProductDetailImage from "@/assets/images/product_detail.png";
 import ProductImageCarousel from "@/components/ProductImageCarousel";
 import ProductReviews from "@/components/ProductReviews";
+import { useAuth } from "@/contexts/AuthContext";
 
 gsap.registerPlugin(useGSAP);
 
@@ -28,6 +29,7 @@ export default function ProductDetailPage() {
 	const router = useRouter();
 	const params = useParams();
 	const productId = params.id as string;
+	const { isLoggedIn } = useAuth();
 	const [activeTab, setActiveTab] = useState<"detail" | "review">("detail");
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [isCartModalOpen, setIsCartModalOpen] = useState(false);
@@ -123,6 +125,11 @@ export default function ProductDetailPage() {
 	};
 
 	const handlePurchase = () => {
+		// 로그인 체크
+		if (!isLoggedIn) {
+			router.push("/signin");
+			return;
+		}
 		// 구매하기 로직 - 결제 페이지로 이동
 		router.push("/ordersheet");
 	};
@@ -261,7 +268,10 @@ export default function ProductDetailPage() {
 			{/* 상품 상세 내용 영역 */}
 			<div className="flex flex-col divide-y divide-[#D9D9D9]">
 				{/* 상품 이미지 캐러셀 */}
-				<ProductImageCarousel images={productImages} />
+				<ProductImageCarousel
+					images={productImages}
+					isSpecialOffer={productId === "1"}
+				/>
 
 				{/* 판매 농장명과 좋아요/공유하기 버튼 */}
 				<div className="flex items-center justify-between px-5 py-[10px]">

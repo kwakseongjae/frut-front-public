@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 interface FarmCardProps {
 	id: number;
 	name: string;
@@ -13,16 +15,27 @@ const FarmCard = ({
 	isFollowing = false,
 	onFollowToggle,
 }: FarmCardProps) => {
+	const router = useRouter();
+
 	const handleClick = () => {
 		onFollowToggle?.(id);
 	};
 
+	const handleFarmProfileClick = () => {
+		router.push(`/farms/${id}`);
+	};
+
 	return (
 		<div className="flex items-center justify-between py-4">
-			<div className="flex items-center gap-4 flex-1">
+			<button
+				type="button"
+				onClick={handleFarmProfileClick}
+				className="flex items-center gap-4 flex-1 cursor-pointer hover:opacity-70 transition-opacity"
+				aria-label={`${name} 농장 프로필 보기`}
+			>
 				<div className="w-[70px] h-[70px] bg-white border border-[#D9D9D9] rounded-full flex-shrink-0"></div>
 				<div className="text-sm font-semibold text-[#262626]">{name}</div>
-			</div>
+			</button>
 			<button
 				type="button"
 				onClick={handleClick}

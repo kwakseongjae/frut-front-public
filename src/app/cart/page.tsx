@@ -7,9 +7,11 @@ import UnfilledCheckbox from "@/assets/icon/ic_checkbox_grey_18.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import { fruits } from "@/assets/images/dummy";
 import CartItem from "@/components/CartItem";
+import { useAuth } from "@/contexts/AuthContext";
 
 const CartPage = () => {
 	const router = useRouter();
+	const { isLoggedIn } = useAuth();
 	const [selectAll, setSelectAll] = useState(true);
 	const [selectedItems, setSelectedItems] = useState<number[]>([1, 2, 3, 4]); // 모든 아이템 선택된 상태
 	const [quantities, setQuantities] = useState<{ [key: number]: number }>({
@@ -70,6 +72,11 @@ const CartPage = () => {
 	};
 
 	const handleOrderClick = () => {
+		// 로그인 체크
+		if (!isLoggedIn) {
+			router.push("/signin");
+			return;
+		}
 		router.push("/ordersheet");
 	};
 
@@ -196,9 +203,9 @@ const CartPage = () => {
 				<div className="w-7" />
 			</div>
 
-			<div className="flex-1 px-5 pt-4 pb-8 flex flex-col gap-4">
+			<div className="flex-1 px-5 pt-4 pb-8 flex flex-col">
 				{/* 전체 선택 및 삭제 */}
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between mb-4">
 					<div className="flex items-center gap-3">
 						<button
 							type="button"
@@ -228,7 +235,7 @@ const CartPage = () => {
 				{/* 농장별 상품 목록 */}
 				{cartItems.length > 0 ? (
 					Array.from(new Set(cartItems.map((item) => item.farmName))).map(
-						(farmName) => {
+						(farmName, index, farmNames) => {
 							const farmItems = cartItems.filter(
 								(item) => item.farmName === farmName,
 							);
@@ -238,40 +245,43 @@ const CartPage = () => {
 							);
 
 							return (
-								<div
-									key={farmName}
-									className="border border-[#E5E5E5] flex flex-col divide-y divide-[#E5E5E5]"
-								>
-									{/* 농장명 */}
-									<div className="flex items-center gap-3 py-3 px-4">
-										<button
-											type="button"
-											onClick={() => handleSelectFarm(farmName)}
-											className="cursor-pointer"
-											aria-label={`${farmName} 전체 선택`}
-										>
-											{allFarmItemsSelected ? (
-												<FilledCheckbox />
-											) : (
-												<UnfilledCheckbox />
-											)}
-										</button>
-										<h3 className="font-medium text-[#262626]">{farmName}</h3>
-									</div>
+								<div key={farmName}>
+									{/* 농가별 구분선 */}
+									{index > 0 && (
+										<div className="h-[4px] bg-[#F7F7F7] -mx-5 my-4" />
+									)}
+									<div className="border border-[#E5E5E5] flex flex-col divide-y divide-[#E5E5E5]">
+										{/* 농장명 */}
+										<div className="flex items-center gap-3 py-3 px-4">
+											<button
+												type="button"
+												onClick={() => handleSelectFarm(farmName)}
+												className="cursor-pointer"
+												aria-label={`${farmName} 전체 선택`}
+											>
+												{allFarmItemsSelected ? (
+													<FilledCheckbox />
+												) : (
+													<UnfilledCheckbox />
+												)}
+											</button>
+											<h3 className="font-medium text-[#262626]">{farmName}</h3>
+										</div>
 
-									{/* 상품 목록 */}
-									<div className="divide-y divide-[#D9D9D9]">
-										{farmItems.map((item) => (
-											<CartItem
-												key={item.id}
-												item={item}
-												isSelected={selectedItems.includes(item.id)}
-												quantity={quantities[item.id] || 1}
-												onSelect={handleSelectItem}
-												onDelete={handleDeleteItem}
-												onQuantityChange={handleQuantityChange}
-											/>
-										))}
+										{/* 상품 목록 */}
+										<div className="divide-y divide-[#D9D9D9]">
+											{farmItems.map((item) => (
+												<CartItem
+													key={item.id}
+													item={item}
+													isSelected={selectedItems.includes(item.id)}
+													quantity={quantities[item.id] || 1}
+													onSelect={handleSelectItem}
+													onDelete={handleDeleteItem}
+													onQuantityChange={handleQuantityChange}
+												/>
+											))}
+										</div>
 									</div>
 								</div>
 							);

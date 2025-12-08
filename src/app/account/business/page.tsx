@@ -17,6 +17,8 @@ import StarIcon from "@/assets/icon/ic_star_lightgreen_15.svg";
 import StarLightGreenIcon from "@/assets/icon/ic_start_lightgreen_18.svg";
 import { fruits } from "@/assets/images/dummy";
 import ProductCard from "@/components/ProductCard";
+import ProfileImageViewer from "@/components/ProfileImageViewer";
+import ReviewImageViewer from "@/components/ReviewImageViewer";
 
 interface NewsPost {
   id: number;
@@ -54,6 +56,7 @@ const BusinessProfilePage = () => {
     "latest"
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProfileViewerOpen, setIsProfileViewerOpen] = useState(false);
   const contentRefs = useRef<{ [key: number]: HTMLParagraphElement | null }>(
     {}
   );
@@ -210,7 +213,25 @@ const BusinessProfilePage = () => {
       <div className="px-5 py-4 border-b border-[#E5E5E5]">
         <div className="flex gap-6">
           {/* 프로필 이미지 */}
-          <div className="w-25 h-25 rounded-full bg-[#D9D9D9] flex-shrink-0" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsProfileViewerOpen(true);
+            }}
+            className="w-24 h-24 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden cursor-pointer z-10"
+            aria-label="프로필 이미지 확대 보기"
+          >
+            {fruits[0]?.image && (
+              <Image
+                src={fruits[0].image}
+                alt="지혁이 농장 프로필"
+                fill
+                className="object-cover pointer-events-none"
+              />
+            )}
+          </button>
 
           {/* 농장 정보 */}
           <div className="flex flex-col gap-2 flex-1">
@@ -493,6 +514,16 @@ const BusinessProfilePage = () => {
           </div>
         </div>
       </div>
+
+      {/* 프로필 이미지 뷰어 */}
+      <ProfileImageViewer
+        imageUrl={fruits[0]?.image || ""}
+        alt="지혁이 농장 프로필"
+        isOpen={isProfileViewerOpen}
+        onClose={() => {
+          setIsProfileViewerOpen(false);
+        }}
+      />
     </div>
   );
 };
@@ -603,6 +634,10 @@ const BusinessReviewsTab = ({
   onFilterChange,
   onSortChange,
 }: BusinessReviewsTabProps) => {
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
   // 더미 리뷰 데이터
   const reviews: Review[] = [
     {
@@ -611,7 +646,13 @@ const BusinessReviewsTab = ({
       rating: 4,
       date: "2025.05.24",
       content: "후기 내용 후기 내용",
-      images: [fruits[0]?.image].filter(Boolean) as string[],
+      images: [
+        fruits[0]?.image,
+        fruits[1]?.image,
+        fruits[2]?.image,
+        fruits[3]?.image,
+        fruits[4]?.image,
+      ].filter(Boolean) as string[],
       productName: "줄무늬 수박",
     },
     {
@@ -620,7 +661,9 @@ const BusinessReviewsTab = ({
       rating: 5,
       date: "2025.05.24",
       content: "후기 내용 후기 내용",
-      images: [fruits[1]?.image].filter(Boolean) as string[],
+      images: [fruits[1]?.image, fruits[2]?.image, fruits[3]?.image].filter(
+        Boolean
+      ) as string[],
       productName: "줄무늬 수박",
     },
     {
@@ -637,7 +680,18 @@ const BusinessReviewsTab = ({
       rating: 4,
       date: "2025.05.22",
       content: "품질이 좋고 신선해요.",
-      images: [fruits[2]?.image, fruits[3]?.image].filter(Boolean) as string[],
+      images: [
+        fruits[2]?.image,
+        fruits[3]?.image,
+        fruits[4]?.image,
+        fruits[5]?.image,
+        fruits[0]?.image,
+        fruits[1]?.image,
+        fruits[2]?.image,
+        fruits[3]?.image,
+        fruits[4]?.image,
+        fruits[5]?.image,
+      ].filter(Boolean) as string[],
       productName: "제주 감귤 5kg",
     },
   ];
@@ -648,6 +702,12 @@ const BusinessReviewsTab = ({
         {index < rating ? <StarLightGreenIcon /> : <EmptyStarIcon />}
       </div>
     ));
+  };
+
+  const handleImageClick = (images: string[], index: number) => {
+    setViewerImages(images);
+    setViewerInitialIndex(index);
+    setIsViewerOpen(true);
   };
 
   // 필터링된 리뷰
@@ -746,7 +806,7 @@ const BusinessReviewsTab = ({
               </div>
 
               {/* 별점 */}
-              <div className="flex items-center gap-1 mb-1">
+              <div className="flex items-center gap-1 mb-2">
                 {renderStars(review.rating)}
               </div>
 
@@ -757,29 +817,33 @@ const BusinessReviewsTab = ({
                 </span>
               </div>
 
-              {/* 리뷰 내용과 이미지 */}
-              {review.images && review.images.length > 0 ? (
-                <div className="flex gap-3">
-                  {/* 리뷰 이미지 */}
-                  <div className="w-24 h-24 rounded relative overflow-hidden bg-[#D9D9D9] flex-shrink-0">
-                    <Image
-                      src={review.images[0]}
-                      alt={`리뷰 이미지`}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  {/* 리뷰 내용 */}
-                  <div className="flex-1">
-                    <p className="text-sm text-[#262626] leading-relaxed">
-                      {review.content}
-                    </p>
-                  </div>
+              {/* 리뷰 내용 */}
+              <p className="text-sm text-[#262626] mb-3 leading-relaxed">
+                {review.content}
+              </p>
+
+              {/* 리뷰 이미지 */}
+              {review.images && review.images.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                  {review.images.map((image, index) => (
+                    <button
+                      key={`${review.id}-${index}`}
+                      type="button"
+                      onClick={() =>
+                        handleImageClick(review.images || [], index)
+                      }
+                      className="w-20 h-20 rounded relative overflow-hidden bg-[#D9D9D9] flex-shrink-0 cursor-pointer"
+                      aria-label={`리뷰 이미지 ${index + 1} 보기`}
+                    >
+                      <Image
+                        src={image}
+                        alt={`리뷰 이미지 ${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                    </button>
+                  ))}
                 </div>
-              ) : (
-                <p className="text-sm text-[#262626] mb-3 leading-relaxed">
-                  {review.content}
-                </p>
               )}
             </div>
             {index < sortedReviews.length - 1 && (
@@ -788,6 +852,14 @@ const BusinessReviewsTab = ({
           </div>
         ))}
       </div>
+
+      {/* 전체화면 이미지 뷰어 */}
+      <ReviewImageViewer
+        images={viewerImages}
+        initialIndex={viewerInitialIndex}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+      />
     </div>
   );
 };
