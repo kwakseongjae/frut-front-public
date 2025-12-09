@@ -19,9 +19,11 @@ import StarIcon from "@/assets/icon/ic_start_lightgreen_18.svg";
 import ShareIcon from "@/assets/icon/ic_upload_black_24.svg";
 import { fruits } from "@/assets/images/dummy";
 import ProductDetailImage from "@/assets/images/product_detail.png";
+import ProductDetailSkeleton from "@/components/ProductDetailSkeleton";
 import ProductImageCarousel from "@/components/ProductImageCarousel";
 import ProductReviews from "@/components/ProductReviews";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProductDetail } from "@/lib/api/hooks/use-product-detail";
 
 gsap.registerPlugin(useGSAP);
 
@@ -35,7 +37,7 @@ export default function ProductDetailPage() {
 	const [isCartModalOpen, setIsCartModalOpen] = useState(false);
 	const [selectedOptions, setSelectedOptions] = useState<
 		Array<{
-			id: string;
+			id: string | number;
 			name: string;
 			price: number;
 			quantity: number;
@@ -51,15 +53,55 @@ export default function ProductDetailPage() {
 
 	const { contextSafe } = useGSAP({ scope: heartButtonRef });
 
-	// 상품 정보
-	const productPrice = 39000;
-	const productOptions = [
+	// API에서 상품 정보 가져오기
+	const numericProductId = parseInt(productId, 10);
+	const { data: productDetail, isLoading: isLoadingProduct } =
+		useProductDetail(numericProductId);
+
+	// 더미 데이터 (API 데이터가 없을 때 사용)
+	const dummyProductPrice = 39000;
+	const dummyProductOptions = [
 		{ id: "option1", name: "5kg (중소과)", price: 0 },
 		{ id: "option2", name: "3kg (중과)", price: 5000 },
 		{ id: "option3", name: "2kg (대과)", price: 8000 },
 	];
 
+	// API 데이터가 있으면 사용, 없으면 더미 데이터 사용
+	const isApiData = !!productDetail;
+	// API 응답 기준 (일반적인 네이밍과 반대):
+	// display_cost_price: 판매가 (더 낮은 가격, 예: 700원)
+	// display_price: 원가 (더 높은 가격, 예: 800원)
+	// 옵션의 cost_price: 판매가 (예: 700원)
+	// 옵션의 price: 원가 (예: 800원)
+	const productSalePrice =
+		productDetail?.display_cost_price || dummyProductPrice; // 판매가
+	const productOriginalPrice =
+		productDetail?.display_price || dummyProductPrice; // 원가
+	const productOptions =
+		productDetail?.options.map((opt) => ({
+			id: opt.id,
+			name: opt.name,
+			price: opt.price, // 옵션의 판매가 (test.html 기준)
+			costPrice: opt.cost_price, // 옵션의 원가 (test.html 기준)
+			discountRate: opt.discount_rate, // 옵션의 할인율
+		})) || dummyProductOptions;
+	const productImages = productDetail?.images || [];
+	const farmId = productDetail?.farm_id;
+	const farmName = productDetail?.farm_name || "최시온 농장";
+	const productName =
+		productDetail?.product_name || "태국 A급 남독마이 골드망고";
+	const ratingAvg = productDetail ? parseFloat(productDetail.rating_avg) : 4.9;
+	const reviewCount = productDetail?.review_count || 100;
+
+	// 찜하기 상태 초기화
+	useEffect(() => {
+		if (productDetail) {
+			setIsFavorite(productDetail.is_wished);
+		}
+	}, [productDetail]);
+
 	const handlePurchaseClick = () => {
+		// 플로팅 구매하기 버튼은 로그인 체크 없이 옵션 선택 모달만 열기
 		setIsModalOpen(true);
 	};
 
@@ -69,7 +111,7 @@ export default function ProductDetailPage() {
 		setSelectedOptions([]);
 	};
 
-	const handleOptionSelect = (optionId: string) => {
+	const handleOptionSelect = (optionId: string | number) => {
 		const option = productOptions.find((opt) => opt.id === optionId);
 		if (option) {
 			// 이미 선택된 옵션인지 확인
@@ -89,7 +131,7 @@ export default function ProductDetailPage() {
 		setIsOptionExpanded(false);
 	};
 
-	const handleQuantityChange = (optionId: string, change: number) => {
+	const handleQuantityChange = (optionId: string | number, change: number) => {
 		setSelectedOptions(
 			(prev) =>
 				prev
@@ -105,7 +147,7 @@ export default function ProductDetailPage() {
 						return opt;
 					})
 					.filter((opt) => opt !== null) as Array<{
-					id: string;
+					id: string | number;
 					name: string;
 					price: number;
 					quantity: number;
@@ -113,11 +155,21 @@ export default function ProductDetailPage() {
 		);
 	};
 
-	const handleRemoveOption = (optionId: string) => {
+	const handleRemoveOption = (optionId: string | number) => {
 		setSelectedOptions((prev) => prev.filter((opt) => opt.id !== optionId));
 	};
 
 	const handleAddToCart = () => {
+		// 로그인 체크
+		if (!isLoggedIn) {
+			// 상품 상세 페이지로 리다이렉트하도록 redirect 파라미터 설정
+			router.push(
+				`/signin?redirect=${encodeURIComponent(
+					`/products/${numericProductId}`,
+				)}`,
+			);
+			return;
+		}
 		// 장바구니 담기 로직
 		console.log("장바구니에 담기:", selectedOptions);
 		handleModalClose();
@@ -125,9 +177,20 @@ export default function ProductDetailPage() {
 	};
 
 	const handlePurchase = () => {
+		// 옵션 상태를 sessionStorage에 저장 (로그인 여부와 관계없이)
+		if (selectedOptions.length > 0) {
+			sessionStorage.setItem(
+				"pendingPurchase",
+				JSON.stringify({
+					productId: numericProductId,
+					options: selectedOptions,
+				}),
+			);
+		}
 		// 로그인 체크
 		if (!isLoggedIn) {
-			router.push("/signin");
+			// 결제 페이지로 리다이렉트하도록 redirect 파라미터 설정
+			router.push(`/signin?redirect=${encodeURIComponent("/ordersheet")}`);
 			return;
 		}
 		// 구매하기 로직 - 결제 페이지로 이동
@@ -151,9 +214,18 @@ export default function ProductDetailPage() {
 	};
 
 	const getTotalPrice = () => {
-		return selectedOptions.reduce((total, opt) => {
-			return total + (productPrice + opt.price) * opt.quantity;
-		}, 0);
+		if (isApiData && productDetail) {
+			// API 데이터: 옵션의 cost_price가 판매가
+			return selectedOptions.reduce((total, opt) => {
+				const option = productDetail.options.find((o) => o.id === opt.id);
+				return total + (option?.cost_price || 0) * opt.quantity;
+			}, 0);
+		} else {
+			// 더미 데이터: 기본 가격 + 옵션 추가 가격
+			return selectedOptions.reduce((total, opt) => {
+				return total + (productSalePrice + opt.price) * opt.quantity;
+			}, 0);
+		}
 	};
 
 	const handleHeartClick = contextSafe((e: React.MouseEvent) => {
@@ -213,15 +285,13 @@ export default function ProductDetailPage() {
 		}
 	});
 
-	// 상품 이미지 데이터 (10개 이미지)
-	const productImages = [...fruits];
-
-	// 더미 데이터 - 농장 정보
-	const farmId = 1; // 실제로는 상품 데이터에서 가져와야 함
-	const farmName = "제주 감귤농원";
+	// 더미 이미지 데이터 (API 이미지가 없을 때 사용)
+	const dummyProductImages = [...fruits];
 
 	const handleFarmProfileClick = () => {
-		router.push(`/farms/${farmId}`);
+		if (farmId) {
+			router.push(`/farms/${farmId}`);
+		}
 	};
 
 	const handleShareClick = async () => {
@@ -265,188 +335,294 @@ export default function ProductDetailPage() {
 				<div className="w-7" />
 			</div>
 
-			{/* 상품 상세 내용 영역 */}
-			<div className="flex flex-col divide-y divide-[#D9D9D9]">
-				{/* 상품 이미지 캐러셀 */}
-				<ProductImageCarousel
-					images={productImages}
-					isSpecialOffer={productId === "1"}
-				/>
+			{isLoadingProduct ? (
+				<ProductDetailSkeleton />
+			) : (
+				<div className="flex flex-col divide-y divide-[#D9D9D9]">
+					{/* 상품 이미지 캐러셀 */}
+					<ProductImageCarousel
+						images={
+							productImages.length > 0
+								? productImages.map((url, index) => ({ id: index, image: url }))
+								: dummyProductImages
+						}
+						isSpecialOffer={productDetail?.is_special || productId === "1"}
+					/>
 
-				{/* 판매 농장명과 좋아요/공유하기 버튼 */}
-				<div className="flex items-center justify-between px-5 py-[10px]">
-					<button
-						type="button"
-						onClick={handleFarmProfileClick}
-						className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
-						aria-label={`${farmName} 농장 프로필 보기`}
-					>
-						<div className="w-8 h-8 bg-[#D9D9D9] rounded-full"></div>
-						<span className="text-sm font-bold text-[#262626]">{farmName}</span>
-						<ChevronRightIcon />
-					</button>
-					<div className="flex items-center gap-3">
-						<button
-							ref={heartButtonRef}
-							type="button"
-							className="cursor-pointer"
-							onClick={handleHeartClick}
-							aria-label={isFavorite ? "찜하기 취소" : "찜하기"}
-						>
-							<div ref={heartIconRef}>
-								{isAnimating || isFavorite ? <HeartGreenIcon /> : <HeartIcon />}
-							</div>
-						</button>
+					{/* 판매 농장명과 좋아요/공유하기 버튼 */}
+					<div className="flex items-center justify-between px-5 py-[10px]">
 						<button
 							type="button"
-							className="cursor-pointer"
-							onClick={handleShareClick}
-							aria-label="상품 공유"
+							onClick={handleFarmProfileClick}
+							className="flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+							aria-label={`${farmName} 농장 프로필 보기`}
 						>
-							<ShareIcon />
+							<div className="w-8 h-8 bg-[#D9D9D9] rounded-full"></div>
+							<span className="text-sm font-bold text-[#262626]">
+								{farmName}
+							</span>
+							<ChevronRightIcon />
 						</button>
-					</div>
-				</div>
-
-				{/* 상품 정보 */}
-				<div className="flex flex-col gap-3 px-5 py-4">
-					{/* 상품명 */}
-					<h2 className="text-lg text-[#262626]">세상에서 제일 달달한 수박</h2>
-
-					{/* 별점과 후기수 */}
-					<div className="flex items-center gap-1">
-						<StarIcon />
-						<span className="text-sm text-[#8C8C8C]">4.8</span>
-						<button
-							type="button"
-							className="text-sm text-[#262626] underline cursor-pointer"
-						>
-							152개 후기보기
-						</button>
-					</div>
-
-					{/* 가격 */}
-					<div className="flex items-center gap-2">
-						<span className="text-2xl font-bold text-[#FF5266]">39,000원</span>
-					</div>
-				</div>
-
-				{/* 상세정보/구매후기 탭 */}
-				<div className="relative flex border-b-2 border-[#D9D9D9] px-5">
-					<button
-						type="button"
-						onClick={() => setActiveTab("detail")}
-						className={`flex-1 py-3 text-sm font-medium relative ${
-							activeTab === "detail"
-								? "text-[#133A1B] after:absolute after:bottom-[-2px] after:left-0 after:right-0 after:h-[2px] after:bg-[#133A1B]"
-								: "text-[#8C8C8C]"
-						}`}
-					>
-						상세정보
-					</button>
-					<button
-						type="button"
-						onClick={() => setActiveTab("review")}
-						className={`flex-1 py-3 text-sm font-medium relative ${
-							activeTab === "review"
-								? "text-[#133A1B] after:absolute after:bottom-[-2px] after:left-0 after:right-0 after:h-[2px] after:bg-[#133A1B]"
-								: "text-[#8C8C8C]"
-						}`}
-					>
-						구매후기
-					</button>
-				</div>
-
-				{/* 탭 컨텐츠 */}
-				{activeTab === "detail" && (
-					<div className="flex flex-col divide-y divide-[#D9D9D9]">
-						{/* 상세정보*/}
-						<div className="w-full">
-							<Image
-								src={ProductDetailImage}
-								alt="상품 상세 정보"
-								className="w-full h-auto"
-							/>
+						<div className="flex items-center gap-3">
+							<button
+								ref={heartButtonRef}
+								type="button"
+								className="cursor-pointer"
+								onClick={handleHeartClick}
+								aria-label={isFavorite ? "찜하기 취소" : "찜하기"}
+							>
+								<div ref={heartIconRef}>
+									{isAnimating || isFavorite ? (
+										<HeartGreenIcon />
+									) : (
+										<HeartIcon />
+									)}
+								</div>
+							</button>
+							<button
+								type="button"
+								className="cursor-pointer"
+								onClick={handleShareClick}
+								aria-label="상품 공유"
+							>
+								<ShareIcon />
+							</button>
 						</div>
-						{/* 상품고시 정보 */}
-						<div>
-							<div className="px-5 py-4 border-b border-[#D9D9D9] ">
-								{/* 상품고시정보 제목 */}
-								<h3 className="text-sm font-semibold text-[#262626]">
-									상품고시정보
-								</h3>
-							</div>
-							{/* 상품고시정보 내용 */}
-							<div className="bg-[#F8F8F8] p-5">
-								<div className="space-y-3">
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">제품명</span>
-										<span className="text-xs text-[#262626] text-left">
-											제주 감귤 5kg
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">
-											생산자 및 소재지
-										</span>
-										<span className="text-xs text-[#262626] text-left">
-											제주 감귤농원 / 제주특별자치도 서귀포시 남원읍
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">
-											제조연월일(포장일 또는 생산연도)
-										</span>
-										<span className="text-xs text-[#262626] text-left">
-											2025년 6월 25일 포장
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">
-											유통기한 또는 품질유지기한
-										</span>
-										<span className="text-xs text-[#262626] text-left">
-											수령일 기준 5일 이내 (냉장보관 권장)
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">
-											관련법상 표시사항
-										</span>
-										<span className="text-xs text-[#262626] text-left">
-											농산물품질관리법에 따른 표시사항 준수
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">상품구성</span>
-										<span className="text-xs text-[#262626] text-left">
-											감귤 중소과 5kg (약 45~50개입)
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">
-											보관방법 또는 취급방법
-										</span>
-										<span className="text-xs text-[#262626] text-left">
-											직사광선 및 고온다습한 곳 피해서 보관
-										</span>
-									</div>
-									<div className="grid grid-cols-2 gap-4">
-										<span className="text-xs text-[#595959]">
-											소비자상담 관련 전화번호
-										</span>
-										<span className="text-xs text-[#262626] text-left">
-											070-1234-5678
-										</span>
+					</div>
+
+					{/* 상품 정보 */}
+					<div className="flex flex-col gap-3 px-5 py-4">
+						{/* 상품명 */}
+						<h2 className="text-lg text-[#262626]">{productName}</h2>
+
+						{/* 별점과 후기수 */}
+						<div className="flex items-center gap-1">
+							<StarIcon />
+							<span className="text-sm text-[#8C8C8C]">
+								{ratingAvg.toFixed(1)}
+							</span>
+							<button
+								type="button"
+								className="text-sm text-[#262626] underline cursor-pointer"
+								onClick={() => setActiveTab("review")}
+							>
+								{reviewCount}개 후기보기
+							</button>
+						</div>
+
+						{/* 가격 */}
+						<div className="flex items-center gap-2">
+							{(productDetail?.display_discount_rate ?? 0) > 0 ? (
+								<>
+									<span className="text-sm text-[#8C8C8C] line-through">
+										{productOriginalPrice.toLocaleString()}원
+									</span>
+									<span className="text-2xl font-bold text-[#FF5266]">
+										{productSalePrice.toLocaleString()}원
+									</span>
+									<span className="text-sm font-bold text-[#FF5266]">
+										{productDetail?.display_discount_rate ?? 0}%
+									</span>
+								</>
+							) : (
+								<span className="text-2xl font-bold text-[#FF5266]">
+									{productOriginalPrice.toLocaleString()}원
+								</span>
+							)}
+						</div>
+					</div>
+
+					{/* 상세정보/구매후기 탭 */}
+					<div className="relative flex border-b-2 border-[#D9D9D9] px-5">
+						<button
+							type="button"
+							onClick={() => setActiveTab("detail")}
+							className={`flex-1 py-3 text-sm font-medium relative ${
+								activeTab === "detail"
+									? "text-[#133A1B] after:absolute after:bottom-[-2px] after:left-0 after:right-0 after:h-[2px] after:bg-[#133A1B]"
+									: "text-[#8C8C8C]"
+							}`}
+						>
+							상세정보
+						</button>
+						<button
+							type="button"
+							onClick={() => setActiveTab("review")}
+							className={`flex-1 py-3 text-sm font-medium relative ${
+								activeTab === "review"
+									? "text-[#133A1B] after:absolute after:bottom-[-2px] after:left-0 after:right-0 after:h-[2px] after:bg-[#133A1B]"
+									: "text-[#8C8C8C]"
+							}`}
+						>
+							구매후기
+						</button>
+					</div>
+
+					{/* 탭 컨텐츠 */}
+					{activeTab === "detail" && (
+						<div className="flex flex-col divide-y divide-[#D9D9D9]">
+							{/* 상세정보*/}
+							{productDetail?.detail_content ? (
+								<div
+									className="w-full p-5"
+									// biome-ignore lint/security/noDangerouslySetInnerHtml: API에서 받은 HTML 콘텐츠
+									dangerouslySetInnerHTML={{
+										__html: productDetail.detail_content,
+									}}
+								/>
+							) : (
+								<div className="w-full">
+									<Image
+										src={ProductDetailImage}
+										alt="상품 상세 정보"
+										className="w-full h-auto"
+									/>
+								</div>
+							)}
+							{/* 상품고시 정보 */}
+							<div>
+								<div className="px-5 py-4 border-b border-[#D9D9D9] ">
+									{/* 상품고시정보 제목 */}
+									<h3 className="text-sm font-semibold text-[#262626]">
+										상품고시정보
+									</h3>
+								</div>
+								{/* 상품고시정보 내용 */}
+								<div className="bg-[#F8F8F8] p-5">
+									<div className="space-y-3">
+										<div className="grid grid-cols-2 gap-4">
+											<span className="text-xs text-[#595959]">제품명</span>
+											<span className="text-xs text-[#262626] text-left">
+												{productDetail?.product_name || "제주 감귤 5kg"}
+											</span>
+										</div>
+										{productDetail?.producer_name && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">
+													생산자 및 소재지
+												</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.producer_name}
+													{productDetail.producer_location &&
+														` / ${productDetail.producer_location}`}
+												</span>
+											</div>
+										)}
+										{(productDetail?.production_date ||
+											productDetail?.production_year) && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">
+													제조연월일(포장일 또는 생산연도)
+												</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.production_date ||
+														(productDetail.production_year &&
+															`${productDetail.production_year}년`)}
+												</span>
+											</div>
+										)}
+										{productDetail?.expiry_type && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">
+													유통기한 또는 품질유지기한
+												</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.expiry_type}
+												</span>
+											</div>
+										)}
+										{productDetail?.legal_notice && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">
+													관련법상 표시사항
+												</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.legal_notice}
+												</span>
+											</div>
+										)}
+										{productDetail?.product_composition && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">상품구성</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.product_composition}
+												</span>
+											</div>
+										)}
+										{productDetail?.handling_method && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">
+													보관방법 또는 취급방법
+												</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.handling_method}
+												</span>
+											</div>
+										)}
+										{productDetail?.customer_service_phone && (
+											<div className="grid grid-cols-2 gap-4">
+												<span className="text-xs text-[#595959]">
+													소비자상담 관련 전화번호
+												</span>
+												<span className="text-xs text-[#262626] text-left">
+													{productDetail.customer_service_phone}
+												</span>
+											</div>
+										)}
+										{/* 더미 데이터용 기본 정보 (API 데이터가 없을 때만 표시) */}
+										{!productDetail && (
+											<>
+												<div className="grid grid-cols-2 gap-4">
+													<span className="text-xs text-[#595959]">
+														유통기한 또는 품질유지기한
+													</span>
+													<span className="text-xs text-[#262626] text-left">
+														수령일 기준 5일 이내 (냉장보관 권장)
+													</span>
+												</div>
+												<div className="grid grid-cols-2 gap-4">
+													<span className="text-xs text-[#595959]">
+														관련법상 표시사항
+													</span>
+													<span className="text-xs text-[#262626] text-left">
+														농산물품질관리법에 따른 표시사항 준수
+													</span>
+												</div>
+												<div className="grid grid-cols-2 gap-4">
+													<span className="text-xs text-[#595959]">
+														상품구성
+													</span>
+													<span className="text-xs text-[#262626] text-left">
+														감귤 중소과 5kg (약 45~50개입)
+													</span>
+												</div>
+												<div className="grid grid-cols-2 gap-4">
+													<span className="text-xs text-[#595959]">
+														보관방법 또는 취급방법
+													</span>
+													<span className="text-xs text-[#262626] text-left">
+														직사광선 및 고온다습한 곳 피해서 보관
+													</span>
+												</div>
+												<div className="grid grid-cols-2 gap-4">
+													<span className="text-xs text-[#595959]">
+														소비자상담 관련 전화번호
+													</span>
+													<span className="text-xs text-[#262626] text-left">
+														070-1234-5678
+													</span>
+												</div>
+											</>
+										)}
 									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				)}
+					)}
 
-				{activeTab === "review" && <ProductReviews />}
-			</div>
+					{activeTab === "review" && <ProductReviews />}
+				</div>
+			)}
 
 			{/* 하단 구매하기 버튼 */}
 			<div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E5E5] px-5 py-3">
@@ -507,25 +683,55 @@ export default function ProductDetailPage() {
 							{/* 옵션 리스트 */}
 							{isOptionExpanded && (
 								<div className="border-l border-b border-r border-[#D9D9D9] overflow-hidden">
-									{productOptions.map((option) => (
-										<button
-											type="button"
-											key={option.id}
-											onClick={() => handleOptionSelect(option.id)}
-											className="w-full p-3 text-left border-b border-[#D9D9D9] last:border-b-0 hover:bg-[#F8F8F8]"
-										>
-											<div className="flex justify-between items-center">
-												<span className="text-sm text-[#262626]">
-													{option.name}
-												</span>
-												{option.price > 0 && (
-													<span className="text-sm text-[#FF5266]">
-														+{option.price.toLocaleString()}원
-													</span>
-												)}
-											</div>
-										</button>
-									))}
+									{productOptions.map((option) => {
+										const apiOption = isApiData
+											? productDetail?.options.find((o) => o.id === option.id)
+											: null;
+										const hasDiscount =
+											apiOption && apiOption.discount_rate > 0;
+
+										return (
+											<button
+												type="button"
+												key={option.id}
+												onClick={() => handleOptionSelect(option.id)}
+												className="w-full p-3 text-left border-b border-[#D9D9D9] last:border-b-0 hover:bg-[#F8F8F8]"
+											>
+												<div className="flex flex-col gap-1">
+													<div className="flex justify-between items-center">
+														<span className="text-sm text-[#262626]">
+															{option.name}
+														</span>
+														{isApiData && apiOption ? (
+															hasDiscount ? (
+																<div className="flex items-center gap-1">
+																	<span className="text-xs text-[#8C8C8C] line-through">
+																		{apiOption.price.toLocaleString()}원
+																	</span>
+																	<span className="text-sm font-bold text-[#FF5266]">
+																		{apiOption.cost_price.toLocaleString()}원
+																	</span>
+																	<span className="text-xs text-[#FF5266]">
+																		{apiOption.discount_rate}%
+																	</span>
+																</div>
+															) : (
+																<span className="text-sm text-[#262626]">
+																	{apiOption.cost_price.toLocaleString()}원
+																</span>
+															)
+														) : (
+															option.price > 0 && (
+																<span className="text-sm text-[#FF5266]">
+																	+{option.price.toLocaleString()}원
+																</span>
+															)
+														)}
+													</div>
+												</div>
+											</button>
+										);
+									})}
 								</div>
 							)}
 						</div>
@@ -578,9 +784,44 @@ export default function ProductDetailPage() {
 													</div>
 
 													<div className="text-right">
-														<p className="text-sm text-[#262626]">
-															{(productPrice + option.price).toLocaleString()}원
-														</p>
+														{isApiData && productDetail ? (
+															(() => {
+																const apiOption = productDetail.options.find(
+																	(o) => o.id === option.id,
+																);
+																const optionHasDiscount =
+																	apiOption && apiOption.discount_rate > 0;
+																return (
+																	<div className="flex flex-col items-end gap-0.5">
+																		{optionHasDiscount ? (
+																			<>
+																				<span className="text-xs text-[#8C8C8C] line-through">
+																					{apiOption.price.toLocaleString()}원
+																				</span>
+																				<span className="text-sm font-bold text-[#262626]">
+																					{apiOption.cost_price.toLocaleString()}
+																					원
+																				</span>
+																			</>
+																		) : (
+																			<span className="text-sm text-[#262626]">
+																				{(
+																					apiOption?.cost_price || 0
+																				).toLocaleString()}
+																				원
+																			</span>
+																		)}
+																	</div>
+																);
+															})()
+														) : (
+															<p className="text-sm text-[#262626]">
+																{(
+																	productSalePrice + option.price
+																).toLocaleString()}
+																원
+															</p>
+														)}
 													</div>
 												</div>
 											</div>

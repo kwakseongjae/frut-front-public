@@ -7,6 +7,7 @@ import UnfilledCheckbox from "@/assets/icon/ic_checkbox_grey_18.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import { fruits } from "@/assets/images/dummy";
 import CartItem from "@/components/CartItem";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 
 const CartPage = () => {
@@ -187,166 +188,170 @@ const CartPage = () => {
 	const totalCount = cartItems.length;
 
 	return (
-		<div className="flex flex-col min-h-screen">
-			{/* 헤더 영역 */}
-			<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5">
-				<button
-					type="button"
-					onClick={handleBackClick}
-					className="cursor-pointer"
-				>
-					<ChevronLeftIcon />
-				</button>
-				<div>
-					<h1 className="text-lg font-semibold text-[#262626]">장바구니</h1>
-				</div>
-				<div className="w-7" />
-			</div>
-
-			<div className="flex-1 px-5 pt-4 pb-8 flex flex-col">
-				{/* 전체 선택 및 삭제 */}
-				<div className="flex items-center justify-between mb-4">
-					<div className="flex items-center gap-3">
-						<button
-							type="button"
-							onClick={handleSelectAll}
-							className="cursor-pointer"
-							aria-label="전체 선택"
-						>
-							{selectAll ? <FilledCheckbox /> : <UnfilledCheckbox />}
-						</button>
-						<span className="font-semibold text-[#262626]">
-							전체선택 ({selectedCount}/{totalCount})
-						</span>
-					</div>
+		<ProtectedRoute>
+			<div className="flex flex-col min-h-screen">
+				{/* 헤더 영역 */}
+				<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5">
 					<button
 						type="button"
-						onClick={handleDeleteSelected}
-						disabled={selectedCount === 0}
-						className={`text-sm font-medium cursor-pointer ${
-							selectedCount > 0
-								? "text-[#949494] hover:text-[#262626]"
-								: "text-[#D9D9D9] cursor-not-allowed"
-						}`}
+						onClick={handleBackClick}
+						className="cursor-pointer"
 					>
-						선택삭제
+						<ChevronLeftIcon />
 					</button>
+					<div>
+						<h1 className="text-lg font-semibold text-[#262626]">장바구니</h1>
+					</div>
+					<div className="w-7" />
 				</div>
-				{/* 농장별 상품 목록 */}
-				{cartItems.length > 0 ? (
-					Array.from(new Set(cartItems.map((item) => item.farmName))).map(
-						(farmName, index, farmNames) => {
-							const farmItems = cartItems.filter(
-								(item) => item.farmName === farmName,
-							);
-							const farmItemIds = farmItems.map((item) => item.id);
-							const allFarmItemsSelected = farmItemIds.every((id) =>
-								selectedItems.includes(id),
-							);
 
-							return (
-								<div key={farmName}>
-									{/* 농가별 구분선 */}
-									{index > 0 && (
-										<div className="h-[4px] bg-[#F7F7F7] -mx-5 my-4" />
-									)}
-									<div className="border border-[#E5E5E5] flex flex-col divide-y divide-[#E5E5E5]">
-										{/* 농장명 */}
-										<div className="flex items-center gap-3 py-3 px-4">
-											<button
-												type="button"
-												onClick={() => handleSelectFarm(farmName)}
-												className="cursor-pointer"
-												aria-label={`${farmName} 전체 선택`}
-											>
-												{allFarmItemsSelected ? (
-													<FilledCheckbox />
-												) : (
-													<UnfilledCheckbox />
-												)}
-											</button>
-											<h3 className="font-medium text-[#262626]">{farmName}</h3>
-										</div>
+				<div className="flex-1 px-5 pt-4 pb-8 flex flex-col">
+					{/* 전체 선택 및 삭제 */}
+					<div className="flex items-center justify-between mb-4">
+						<div className="flex items-center gap-3">
+							<button
+								type="button"
+								onClick={handleSelectAll}
+								className="cursor-pointer"
+								aria-label="전체 선택"
+							>
+								{selectAll ? <FilledCheckbox /> : <UnfilledCheckbox />}
+							</button>
+							<span className="font-semibold text-[#262626]">
+								전체선택 ({selectedCount}/{totalCount})
+							</span>
+						</div>
+						<button
+							type="button"
+							onClick={handleDeleteSelected}
+							disabled={selectedCount === 0}
+							className={`text-sm font-medium cursor-pointer ${
+								selectedCount > 0
+									? "text-[#949494] hover:text-[#262626]"
+									: "text-[#D9D9D9] cursor-not-allowed"
+							}`}
+						>
+							선택삭제
+						</button>
+					</div>
+					{/* 농장별 상품 목록 */}
+					{cartItems.length > 0 ? (
+						Array.from(new Set(cartItems.map((item) => item.farmName))).map(
+							(farmName, index, _farmNames) => {
+								const farmItems = cartItems.filter(
+									(item) => item.farmName === farmName,
+								);
+								const farmItemIds = farmItems.map((item) => item.id);
+								const allFarmItemsSelected = farmItemIds.every((id) =>
+									selectedItems.includes(id),
+								);
 
-										{/* 상품 목록 */}
-										<div className="divide-y divide-[#D9D9D9]">
-											{farmItems.map((item) => (
-												<CartItem
-													key={item.id}
-													item={item}
-													isSelected={selectedItems.includes(item.id)}
-													quantity={quantities[item.id] || 1}
-													onSelect={handleSelectItem}
-													onDelete={handleDeleteItem}
-													onQuantityChange={handleQuantityChange}
-												/>
-											))}
+								return (
+									<div key={farmName}>
+										{/* 농가별 구분선 */}
+										{index > 0 && (
+											<div className="h-[4px] bg-[#F7F7F7] -mx-5 my-4" />
+										)}
+										<div className="border border-[#E5E5E5] flex flex-col divide-y divide-[#E5E5E5]">
+											{/* 농장명 */}
+											<div className="flex items-center gap-3 py-3 px-4">
+												<button
+													type="button"
+													onClick={() => handleSelectFarm(farmName)}
+													className="cursor-pointer"
+													aria-label={`${farmName} 전체 선택`}
+												>
+													{allFarmItemsSelected ? (
+														<FilledCheckbox />
+													) : (
+														<UnfilledCheckbox />
+													)}
+												</button>
+												<h3 className="font-medium text-[#262626]">
+													{farmName}
+												</h3>
+											</div>
+
+											{/* 상품 목록 */}
+											<div className="divide-y divide-[#D9D9D9]">
+												{farmItems.map((item) => (
+													<CartItem
+														key={item.id}
+														item={item}
+														isSelected={selectedItems.includes(item.id)}
+														quantity={quantities[item.id] || 1}
+														onSelect={handleSelectItem}
+														onDelete={handleDeleteItem}
+														onQuantityChange={handleQuantityChange}
+													/>
+												))}
+											</div>
 										</div>
 									</div>
-								</div>
-							);
-						},
-					)
-				) : (
-					<div className="flex flex-col items-center justify-center py-20 text-center">
-						<p className="font-medium text-[#8C8C8C] mb-2">
-							장바구니가 비어있습니다
-						</p>
+								);
+							},
+						)
+					) : (
+						<div className="flex flex-col items-center justify-center py-20 text-center">
+							<p className="font-medium text-[#8C8C8C] mb-2">
+								장바구니가 비어있습니다
+							</p>
+						</div>
+					)}
+				</div>
+
+				{/* 구분선 */}
+				{cartItems.length > 0 && <div className="h-[10px] bg-[#F7F7F7]" />}
+
+				{/* 결제 예상 금액 */}
+				{cartItems.length > 0 && (
+					<div className="px-5 pt-8 pb-12">
+						<h2 className="text-base font-semibold text-[#262626] mb-3">
+							결제 예상 금액
+						</h2>
+						<div className="space-y-2">
+							<div className="flex justify-between items-center">
+								<span className="text-sm text-[#262626]">상품 금액</span>
+								<span className="text-sm font-semibold text-[#262626]">
+									{totalAmount.toLocaleString()}원
+								</span>
+							</div>
+							<div className="flex justify-between items-center">
+								<span className="text-sm text-[#262626]">총 할인받은 금액</span>
+								<span className="text-sm font-semibold text-[#FF6B6B]">
+									-{totalDiscount.toLocaleString()}원
+								</span>
+							</div>
+						</div>
+
+						{/* 구분선 */}
+						<div className="h-[1px] bg-[#262626] my-4" />
+
+						{/* 결제예정금액 */}
+						<div className="flex justify-between items-center">
+							<span className="font-semibold text-[#262626]">결제예정금액</span>
+							<span className="text-lg font-semibold text-[#262626]">
+								{(totalAmount - totalDiscount).toLocaleString()}원
+							</span>
+						</div>
+					</div>
+				)}
+
+				{/* 하단 주문 버튼 */}
+				{cartItems.length > 0 && (
+					<div className="sticky bottom-0 bg-white border-t border-[#E5E5E5] px-5 py-3">
+						<button
+							type="button"
+							onClick={handleOrderClick}
+							disabled={selectedCount === 0}
+							className="w-full py-4 bg-[#133A1B] text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{totalAmount.toLocaleString()}원 주문하기
+						</button>
 					</div>
 				)}
 			</div>
-
-			{/* 구분선 */}
-			{cartItems.length > 0 && <div className="h-[10px] bg-[#F7F7F7]" />}
-
-			{/* 결제 예상 금액 */}
-			{cartItems.length > 0 && (
-				<div className="px-5 pt-8 pb-12">
-					<h2 className="text-base font-semibold text-[#262626] mb-3">
-						결제 예상 금액
-					</h2>
-					<div className="space-y-2">
-						<div className="flex justify-between items-center">
-							<span className="text-sm text-[#262626]">상품 금액</span>
-							<span className="text-sm font-semibold text-[#262626]">
-								{totalAmount.toLocaleString()}원
-							</span>
-						</div>
-						<div className="flex justify-between items-center">
-							<span className="text-sm text-[#262626]">총 할인받은 금액</span>
-							<span className="text-sm font-semibold text-[#FF6B6B]">
-								-{totalDiscount.toLocaleString()}원
-							</span>
-						</div>
-					</div>
-
-					{/* 구분선 */}
-					<div className="h-[1px] bg-[#262626] my-4" />
-
-					{/* 결제예정금액 */}
-					<div className="flex justify-between items-center">
-						<span className="font-semibold text-[#262626]">결제예정금액</span>
-						<span className="text-lg font-semibold text-[#262626]">
-							{(totalAmount - totalDiscount).toLocaleString()}원
-						</span>
-					</div>
-				</div>
-			)}
-
-			{/* 하단 주문 버튼 */}
-			{cartItems.length > 0 && (
-				<div className="sticky bottom-0 bg-white border-t border-[#E5E5E5] px-5 py-3">
-					<button
-						type="button"
-						onClick={handleOrderClick}
-						disabled={selectedCount === 0}
-						className="w-full py-4 bg-[#133A1B] text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						{totalAmount.toLocaleString()}원 주문하기
-					</button>
-				</div>
-			)}
-		</div>
+		</ProtectedRoute>
 	);
 };
 

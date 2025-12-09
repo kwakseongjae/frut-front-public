@@ -22,7 +22,7 @@ const CustomerServicePage = () => {
 	return (
 		<div className="flex flex-col min-h-screen bg-white">
 			{/* 헤더 영역 */}
-			<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5 border-b border-[#E5E5E5]">
+			<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5">
 				<button
 					type="button"
 					onClick={() => window.history.back()}
@@ -73,13 +73,9 @@ const CustomerServicePage = () => {
 				<div className="w-full bg-[#F7F7F7] px-6 py-8">
 					<div className="flex flex-col gap-2">
 						<div className="text-lg font-bold text-[#262626]">
-							고객센터: 031-1234-5678
+							문의: fruithan0825@naver.com
 						</div>
-						<div className="text-sm text-[#262626]">abcd@dsidh.com</div>
 						<div className="flex flex-col gap-1">
-							<div className="text-sm text-[#262626]">
-								운영시간: 평일 00:00 - 00:00
-							</div>
 							<div className="text-sm text-[#262626]">
 								주말 및 공휴일은 휴무입니다
 							</div>

@@ -28,6 +28,7 @@ const MainContainer = ({ children }: MainContainerProps) => {
 		pathname.startsWith("/account/refund") ||
 		pathname.startsWith("/account/edit") ||
 		pathname.startsWith("/account/business") ||
+		(pathname.includes("/orders/") && pathname.includes("/complete")) ||
 		(pathname.startsWith("/orders/") && pathname !== "/orders");
 	const shouldHideTabBar =
 		pathname.startsWith("/farms") ||
@@ -43,6 +44,7 @@ const MainContainer = ({ children }: MainContainerProps) => {
 		pathname.startsWith("/account/refund") ||
 		pathname.startsWith("/account/edit") ||
 		pathname.startsWith("/account/business") ||
+		(pathname.includes("/orders/") && pathname.includes("/complete")) ||
 		(pathname.startsWith("/orders/") && pathname !== "/orders");
 
 	return (
