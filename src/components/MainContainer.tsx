@@ -12,12 +12,13 @@ interface MainContainerProps {
 const MainContainer = ({ children }: MainContainerProps) => {
 	const pathname = usePathname();
 
-	// Category, Farm, Product, Signin, Cart, Search, Orders detail 페이지에서는 TopBar와 TabBar 숨기기
+	// Category, Farm, Product, Signin, Signup, Cart, Search, Orders detail 페이지에서는 TopBar와 TabBar 숨기기
 	const shouldHideTopBar =
 		pathname.startsWith("/categories/") ||
 		pathname.startsWith("/farms") ||
 		pathname.startsWith("/products/") ||
 		pathname.startsWith("/signin") ||
+		pathname.startsWith("/signup") ||
 		pathname.startsWith("/ordersheet") ||
 		pathname.startsWith("/cart") ||
 		pathname.startsWith("/search") ||
@@ -34,6 +35,7 @@ const MainContainer = ({ children }: MainContainerProps) => {
 		pathname.startsWith("/farms") ||
 		pathname.startsWith("/products/") ||
 		pathname.startsWith("/signin") ||
+		pathname.startsWith("/signup") ||
 		pathname.startsWith("/ordersheet") ||
 		pathname.startsWith("/cart") ||
 		pathname.startsWith("/search") ||
