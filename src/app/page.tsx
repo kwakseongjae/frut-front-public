@@ -2,12 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import MoreIcon from "@/assets/icon/ic_chevron_right_grey_17.svg";
 import { ad_banner } from "@/assets/images/dummy";
+import BannerCarousel from "@/components/BannerCarousel";
 import FarmAvatar from "@/components/FarmAvatar";
 import ProductCard from "@/components/ProductCard";
-import { useProducts } from "@/lib/api/hooks/use-products";
+import { useBannerAds } from "@/lib/api/hooks/use-banner-ads";
+import { useBestFarms } from "@/lib/api/hooks/use-best-farms";
+import { useInfiniteProducts } from "@/lib/api/hooks/use-products";
 
 // 드래그 스크롤 컨테이너 컴포넌트
 function FarmScrollContainer({ children }: { children: React.ReactNode }) {
@@ -180,254 +183,280 @@ function ProductScrollContainer({ children }: { children: React.ReactNode }) {
 }
 
 export default function Home() {
-  // 더미 농장 데이터
-  const farmData = [
-    { id: 1, name: "지혁이 농장" },
-    { id: 2, name: "최시온 농장" },
-    { id: 3, name: "민수 농장" },
-    { id: 4, name: "서연 농장" },
-    { id: 5, name: "동현 농장" },
-    { id: 6, name: "예진 농장" },
-    { id: 7, name: "준호 농장" },
-    { id: 8, name: "소영 농장" },
-    { id: 9, name: "태현 농장" },
-    { id: 10, name: "미래 농장" },
-  ];
+  // 베스트 농장 데이터 조회
+  const { data: bestFarmsData, isLoading: isLoadingBestFarms } = useBestFarms();
 
-  // 테스트 상품 조회
-  const { data: testProductsData, isLoading: isLoadingTestProducts } =
-    useProducts({});
+  // 배너 광고 조회
+  const { data: mainBanners } = useBannerAds({ ad_type: "MAIN" });
+  const { data: middleBanners } = useBannerAds({ ad_type: "MIDDLE" });
+
+  // 상품 목록 조회 (useInfiniteProducts 사용하여 캐시 공유)
+  const { data: specialData, isLoading: isLoadingSpecial } =
+    useInfiniteProducts({
+      type: "special",
+    });
+  const { data: weeklyBestData, isLoading: isLoadingWeeklyBest } =
+    useInfiniteProducts({
+      type: "weekly_best",
+    });
+  const { data: popularData, isLoading: isLoadingPopular } =
+    useInfiniteProducts({
+      type: "popular",
+    });
+  const { data: recommendedData, isLoading: isLoadingRecommended } =
+    useInfiniteProducts({
+      type: "recommended",
+    });
+
+  // 첫 페이지의 상품만 사용 (홈 화면에서는 6개만 표시)
+  const specialProducts = specialData?.pages?.[0];
+  const weeklyBestProducts = weeklyBestData?.pages?.[0];
+  const popularProducts = popularData?.pages?.[0];
+  const recommendedProducts = recommendedData?.pages?.[0];
+
+  // 스켈레톤 로딩용 고유 ID 생성
+  const skeletonIds = useMemo(
+    () => Array.from({ length: 6 }, () => crypto.randomUUID()),
+    []
+  );
 
   return (
     <div className="flex flex-col">
       {/* 광고 배너 영역 */}
-      <div className="w-full h-[430px] relative">
-        <Image src={ad_banner} alt="광고 배너" fill className="object-cover" />
-      </div>
+      {mainBanners && mainBanners.length > 0 ? (
+        <BannerCarousel
+          banners={mainBanners}
+          height="430px"
+          autoSlideInterval={5000}
+        />
+      ) : (
+        <div className="w-full h-[430px] relative">
+          <Image
+            src={ad_banner}
+            alt="광고 배너"
+            fill
+            className="object-cover"
+          />
+        </div>
+      )}
       {/* 홈 화면 카드 영역 (중간 배너 이전)  */}
       <div className="flex flex-col gap-8 px-6 py-8">
-        {/* 테스트 상품 카드 영역 */}
+        {/* 특가 카드 영역 */}
         <div className="flex flex-col gap-3">
-          {/* 테스트 상품 제목 영역 */}
+          {/* 특가 제목 영역 */}
           <div className="flex justify-between items-center">
-            <h2 className="text-[18px] font-semibold text-[#262626]">
-              인기 상품
-            </h2>
+            <h2 className="text-[18px] font-semibold text-[#262626]">특가</h2>
+            <Link
+              href="/categories/type/special"
+              className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
+            >
+              <span>더보기</span>
+              <MoreIcon />
+            </Link>
           </div>
-          {/* 테스트 상품 리스트 영역 */}
-          {isLoadingTestProducts ? (
+          {/* 특가 상품 리스트 영역 */}
+          {isLoadingSpecial ? (
             <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-              <div className="w-full aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded" />
-              <div className="w-full aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded" />
+              {skeletonIds.map((id) => (
+                <div
+                  key={`special-skeleton-${id}`}
+                  className="w-full aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded"
+                />
+              ))}
             </div>
-          ) : testProductsData?.results &&
-            testProductsData.results.length > 0 ? (
+          ) : specialProducts?.results && specialProducts.results.length > 0 ? (
             <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-              {testProductsData.results.slice(0, 2).map((product) => (
+              {specialProducts.results.slice(0, 6).map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
           ) : null}
         </div>
-        {/* 특가 카드 영역 - 주석처리 */}
-        {/* <div className="flex flex-col gap-3">
-					<div className="flex justify-between items-center">
-						<h2 className="text-[18px] font-semibold text-[#262626]">특가</h2>
-						<Link
-							href="/categories/special-offers"
-							className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
-						>
-							<span>더보기</span>
-							<MoreIcon />
-						</Link>
-					</div>
-					<div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-						<ProductCard id={1} isSpecialOffer={true} />
-						<ProductCard id={2} isSpecialOffer={true} />
-						<ProductCard id={3} isSpecialOffer={true} />
-						<ProductCard id={4} isSpecialOffer={true} />
-						<ProductCard id={5} isSpecialOffer={true} />
-						<ProductCard id={6} isSpecialOffer={true} />
-					</div>
-				</div> */}
-        {/* 실시간 인기상품 카드 영역 - 주석처리 */}
-        {/* <div className="flex flex-col gap-3">
-					<div className="flex justify-between items-center">
-						<h2 className="text-[18px] font-semibold text-[#262626]">
-							실시간 인기상품
-						</h2>
-						<Link
-							href="/categories/real-time-popular"
-							className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
-						>
-							<span>더보기</span>
-							<MoreIcon />
-						</Link>
-					</div>
-					<div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-						<ProductCard
-							id={7}
-							originalPrice={45000}
-							discountedPrice={32000}
-							discountRate={29}
-							tags={["고당도", "특가"]}
-						/>
-						<ProductCard
-							id={8}
-							originalPrice={28000}
-							discountedPrice={21000}
-							discountRate={25}
-							tags={[]}
-						/>
-						<ProductCard
-							id={9}
-							originalPrice={35000}
-							discountedPrice={35000}
-							discountRate={0}
-							tags={["신상품", "프리미엄"]}
-						/>
-						<ProductCard
-							id={10}
-							originalPrice={22000}
-							discountedPrice={22000}
-							discountRate={0}
-							tags={[]}
-						/>
-					</div>
-				</div> */}
+        {/* 실시간 인기상품 카드 영역 */}
+        <div className="flex flex-col gap-3">
+          {/* 실시간 인기상품 제목 영역 */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-[18px] font-semibold text-[#262626]">
+              실시간 인기상품
+            </h2>
+            <Link
+              href="/categories/type/popular"
+              className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
+            >
+              <span>더보기</span>
+              <MoreIcon />
+            </Link>
+          </div>
+          {/* 실시간 인기상품 상품 리스트 영역 */}
+          {isLoadingPopular ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+              {skeletonIds.map((id) => (
+                <div
+                  key={`popular-skeleton-${id}`}
+                  className="w-full aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded"
+                />
+              ))}
+            </div>
+          ) : popularProducts?.results && popularProducts.results.length > 0 ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+              {popularProducts.results.slice(0, 6).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
-      {/* 추천상품 카드 영역 - 주석처리 */}
-      {/* <div className="flex flex-col gap-4 py-8">
-				<div className="flex justify-between items-center px-6">
-					<h2 className="text-[18px] font-semibold text-[#262626]">추천상품</h2>
-					<Link
-						href="/categories/recommended"
-						className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
-					>
-						<span>더보기</span>
-						<MoreIcon />
-					</Link>
-				</div>
-				<ProductScrollContainer>
-					<div
-						className="flex-shrink-0"
-						style={{
-							width:
-								"min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
-						}}
-					>
-						<ProductCard id={13} />
-					</div>
-					<div
-						className="flex-shrink-0"
-						style={{
-							width:
-								"min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
-						}}
-					>
-						<ProductCard id={14} />
-					</div>
-					<div
-						className="flex-shrink-0"
-						style={{
-							width:
-								"min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
-						}}
-					>
-						<ProductCard id={15} />
-					</div>
-					<div
-						className="flex-shrink-0"
-						style={{
-							width:
-								"min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
-						}}
-					>
-						<ProductCard id={16} />
-					</div>
-					<div
-						className="flex-shrink-0"
-						style={{
-							width:
-								"min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
-						}}
-					>
-						<ProductCard id={17} />
-					</div>
-					<div
-						className="flex-shrink-0"
-						style={{
-							width:
-								"min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
-						}}
-					>
-						<ProductCard id={18} />
-					</div>
-				</ProductScrollContainer>
-			</div> */}
-      {/* 중간 배너 영역 - 주석처리 */}
-      {/* <div className="w-full h-[140px] relative">
-				<Image src={ad_banner} alt="중간 배너" fill className="object-cover" />
-			</div> */}
-      {/* 홈 화면 카드 영역 (중간 배너 이후) - 주석처리 */}
-      {/* <div className="flex flex-col gap-8 px-6 py-8">
-				<div className="flex flex-col gap-3">
-					<div className="flex justify-between items-center">
-						<h2 className="text-[18px] font-semibold text-[#262626]">
-							이번주 베스트
-						</h2>
-						<Link
-							href="/categories/weekly-best"
-							className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
-						>
-							<span>더보기</span>
-							<MoreIcon />
-						</Link>
-					</div>
-					<div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-						<ProductCard id={19} />
-						<ProductCard id={20} />
-						<ProductCard id={21} />
-						<ProductCard id={22} />
-						<ProductCard id={23} />
-						<ProductCard id={24} />
-					</div>
-				</div>
-			</div> */}
-      {/* 이달의 베스트 농장 영역 - 주석처리 */}
-      {/* <div className="flex flex-col gap-4 py-8 ">
-				<div className="flex justify-between items-center px-6">
-					<h2 className="text-[18px] font-semibold text-[#262626]">
-						이달의 베스트 농장
-					</h2>
-					<Link
-						href="/farms/best"
-						className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
-					>
-						<span>더보기</span>
-						<MoreIcon />
-					</Link>
-				</div>
-				<FarmScrollContainer>
-					{farmData.map((farm, index) => (
-						<div
-							key={farm.id}
-							className="flex-shrink-0"
-							style={{
-								width: "calc(608px / 5.5 - 12px)",
-								minWidth: "80px",
-								maxWidth: "120px",
-							}}
-						>
-							<FarmAvatar
-								rank={index + 1}
-								farmName={farm.name}
-								farmId={farm.id}
-							/>
-						</div>
-					))}
-				</FarmScrollContainer>
-			</div> */}
+      {/* 추천상품 카드 영역 - 독립 컨테이너 */}
+      <div className="flex flex-col gap-4 py-8">
+        {/* 추천상품 제목 영역 */}
+        <div className="flex justify-between items-center px-6">
+          <h2 className="text-[18px] font-semibold text-[#262626]">추천상품</h2>
+          <Link
+            href="/categories/type/recommended"
+            className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
+          >
+            <span>더보기</span>
+            <MoreIcon />
+          </Link>
+        </div>
+        {/* 추천상품 상품 리스트 영역 - 횡스크롤 */}
+        {isLoadingRecommended ? (
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide pl-6 pr-6">
+            {skeletonIds.map((id) => (
+              <div
+                key={`recommended-skeleton-${id}`}
+                className="flex-shrink-0 w-[calc((100vw-48px)/2.2)] aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded"
+              />
+            ))}
+          </div>
+        ) : recommendedProducts?.results &&
+          recommendedProducts.results.length > 0 ? (
+          <ProductScrollContainer>
+            {recommendedProducts.results.slice(0, 6).map((product) => (
+              <div
+                key={product.id}
+                className="flex-shrink-0"
+                style={{
+                  width:
+                    "min(calc((100vw - 48px) / 2.2), calc((640px - 48px) / 2.2))",
+                }}
+              >
+                <ProductCard product={product} />
+              </div>
+            ))}
+          </ProductScrollContainer>
+        ) : null}
+      </div>
+      {/* 중간 배너 영역 */}
+      {middleBanners && middleBanners.length > 0 ? (
+        <BannerCarousel
+          banners={middleBanners}
+          height="140px"
+          autoSlideInterval={5000}
+        />
+      ) : (
+        <div className="w-full h-[140px] relative">
+          <Image
+            src={ad_banner}
+            alt="중간 배너"
+            fill
+            className="object-cover"
+          />
+        </div>
+      )}
+      {/* 홈 화면 카드 영역 (중간 배너 이후)  */}
+      <div className="flex flex-col gap-8 px-6 py-8">
+        {/* 이번주 베스트 카드 영역 */}
+        <div className="flex flex-col gap-3">
+          {/* 이번주 베스트 제목 영역 */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-[18px] font-semibold text-[#262626]">
+              이번주 베스트
+            </h2>
+            <Link
+              href="/categories/type/weekly_best"
+              className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
+            >
+              <span>더보기</span>
+              <MoreIcon />
+            </Link>
+          </div>
+          {/* 이번주 베스트 상품 리스트 영역 */}
+          {isLoadingWeeklyBest ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+              {skeletonIds.map((id) => (
+                <div
+                  key={`weekly-best-skeleton-${id}`}
+                  className="w-full aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded"
+                />
+              ))}
+            </div>
+          ) : weeklyBestProducts?.results &&
+            weeklyBestProducts.results.length > 0 ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+              {weeklyBestProducts.results.slice(0, 6).map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {/* 이달의 베스트 농장 영역 */}
+      <div className="flex flex-col gap-4 py-8 ">
+        {/* 이달의 베스트 농장 제목 영역 */}
+        <div className="flex justify-between items-center px-6">
+          <h2 className="text-[18px] font-semibold text-[#262626]">
+            이달의 베스트 농장
+          </h2>
+          <Link
+            href="/farms/best"
+            className="flex items-center gap-1 text-sm text-[#8C8C8C] font-medium cursor-pointer"
+          >
+            <span>더보기</span>
+            <MoreIcon />
+          </Link>
+        </div>
+        {/* 이달의 베스트 농장 아바타 리스트 영역 - 횡스크롤 */}
+        {isLoadingBestFarms ? (
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pl-6 pr-6">
+            {skeletonIds.slice(0, 8).map((id) => (
+              <div
+                key={`best-farm-skeleton-${id}`}
+                className="flex-shrink-0 flex flex-col items-center gap-2"
+                style={{
+                  width: "calc(608px / 5.5 - 12px)",
+                  minWidth: "80px",
+                  maxWidth: "120px",
+                }}
+              >
+                <div className="w-[60px] h-[60px] bg-[#D9D9D9] rounded-full animate-pulse" />
+                <div className="w-16 h-4 bg-[#D9D9D9] rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : bestFarmsData && bestFarmsData.length > 0 ? (
+          <FarmScrollContainer>
+            {bestFarmsData.map((farm) => (
+              <div
+                key={farm.farm_id}
+                className="flex-shrink-0"
+                style={{
+                  width: "calc(608px / 5.5 - 12px)", // 5.5개가 보이도록 계산 (패딩 48px = pl-6 + pr-6)
+                  minWidth: "80px", // 최소 너비 보장
+                  maxWidth: "120px", // 데스크톱에서 너무 크지 않도록
+                }}
+              >
+                <FarmAvatar
+                  rank={farm.rank}
+                  farmName={farm.farm_name}
+                  farmId={farm.farm_id}
+                  farmImage={farm.farm_image}
+                />
+              </div>
+            ))}
+          </FarmScrollContainer>
+        ) : null}
+      </div>
     </div>
   );
 }

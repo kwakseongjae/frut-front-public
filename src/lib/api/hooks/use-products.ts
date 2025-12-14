@@ -1,15 +1,79 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
-	type ProductListParams,
-	productsApi,
-	productsQueryKeys,
+  type ProductListParams,
+  productsApi,
+  productsQueryKeys,
 } from "../products";
 
 export const useProducts = (params?: ProductListParams) => {
-	return useQuery({
-		queryKey: productsQueryKeys.list(params),
-		queryFn: () => productsApi.getProducts(params),
-	});
+  return useQuery({
+    queryKey: productsQueryKeys.list(params),
+    queryFn: () => productsApi.getProducts(params),
+  });
+};
+
+export const useInfiniteProducts = (
+  params?: Omit<ProductListParams, "page">
+) => {
+  // type 또는 category_id가 있으면 쿼리 실행
+  const hasType = !!params?.type;
+  const hasCategoryId = !!params?.category_id;
+  const enabled = hasType || hasCategoryId;
+
+  return useInfiniteQuery({
+    queryKey: productsQueryKeys.list(params),
+    queryFn: async ({ pageParam = 1 }) => {
+      // type도 없고 category_id도 없으면 빈 결과 반환
+      if (!params?.type && !params?.category_id) {
+        return {
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        };
+      }
+
+      try {
+        return await productsApi.getProducts({ ...params, page: pageParam });
+      } catch (error) {
+        // 에러 발생 시 빈 결과 반환
+        console.error("Failed to fetch products:", error);
+        return {
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        };
+      }
+    },
+    getNextPageParam: (lastPage) => {
+      // lastPage가 없거나 next가 없으면 undefined 반환
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+
+      try {
+        // next URL이 상대 URL일 수 있으므로 절대 URL로 변환
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        // URL 파싱 실패 시 undefined 반환
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
+    enabled, // type 또는 category_id가 있을 때 쿼리 실행
+  });
+};
+
+export const useCategories = (isActive?: boolean) => {
+  return useQuery({
+    queryKey: productsQueryKeys.categories(isActive),
+    queryFn: () => productsApi.getCategories(isActive),
+  });
 };

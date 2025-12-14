@@ -2,37 +2,32 @@
 
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import QuestionCircleIcon from "@/assets/icon/ic_question_circle_grey_15.svg";
-
-interface PointTransaction {
-	id: number;
-	description: string;
-	date: string;
-	points: number; // 양수면 적립, 음수면 사용
-}
+import { usePointsBalance, usePointsHistory } from "@/lib/api/hooks/use-points";
+import type { PointHistory } from "@/lib/api/points";
 
 const PointsPage = () => {
-	// 더미 데이터
-	const currentPoints = 2500;
-	const transactions: PointTransaction[] = [
-		{
-			id: 1,
-			description: "사과 5kg 구매",
-			date: "2024.10.20",
-			points: 2500,
-		},
-		{
-			id: 2,
-			description: "내용",
-			date: "2024.10.18",
-			points: -1000,
-		},
-		{
-			id: 3,
-			description: "내용",
-			date: "2024.10.16",
-			points: 1000,
-		},
-	];
+	const { data: pointsData, isLoading: isPointsLoading } = usePointsBalance();
+	const { data: historyData, isLoading: isHistoryLoading } = usePointsHistory();
+	const currentPoints = pointsData?.balance || 0;
+	const transactions = historyData?.results || [];
+
+	// 날짜 포맷팅 함수
+	const formatDate = (dateString: string): string => {
+		const date = new Date(dateString);
+		return date
+			.toLocaleDateString("ko-KR", {
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+			})
+			.replace(/\. /g, ".")
+			.replace(/\.$/, "");
+	};
+
+	// 포인트 타입에 따라 색상 결정
+	const getPointColor = (pointAmount: number): string => {
+		return pointAmount > 0 ? "text-[#133A1B]" : "text-[#F73535]";
+	};
 
 	return (
 		<div className="flex flex-col min-h-screen bg-white">
@@ -55,9 +50,15 @@ const PointsPage = () => {
 			{/* 보유 포인트 섹션 */}
 			<div className="flex items-center justify-between px-5 py-4">
 				<span className="font-semibold text-[#262626]">보유 포인트</span>
-				<span className="text-lg font-semibold text-[#262626]">
-					{currentPoints.toLocaleString()}P
-				</span>
+				{isPointsLoading ? (
+					<span className="text-lg font-semibold text-[#8C8C8C]">
+						로딩 중...
+					</span>
+				) : (
+					<span className="text-lg font-semibold text-[#262626]">
+						{currentPoints.toLocaleString()}P
+					</span>
+				)}
 			</div>
 
 			{/* 디바이더 */}
@@ -77,33 +78,43 @@ const PointsPage = () => {
 				</div>
 
 				{/* 내역 리스트 */}
-				<div className="flex flex-col">
-					{transactions.map((transaction, index) => (
-						<div key={transaction.id}>
-							<div className="flex items-center justify-between px-5 py-3">
-								<div className="flex flex-col gap-1 flex-1">
-									<span className="text-sm text-[#262626]">
-										{transaction.description}
-									</span>
-									<span className="text-xs text-[#8C8C8C]">
-										{transaction.date}
+				{isHistoryLoading ? (
+					<div className="flex items-center justify-center py-10">
+						<p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+					</div>
+				) : transactions.length === 0 ? (
+					<div className="flex items-center justify-center py-10">
+						<p className="text-sm text-[#8C8C8C]">포인트 내역이 없습니다.</p>
+					</div>
+				) : (
+					<div className="flex flex-col">
+						{transactions.map((transaction: PointHistory, index: number) => (
+							<div key={transaction.id}>
+								<div className="flex items-center justify-between px-5 py-3">
+									<div className="flex flex-col gap-1 flex-1">
+										<span className="text-sm text-[#262626]">
+											{transaction.reason || transaction.point_type_display}
+										</span>
+										<span className="text-xs text-[#8C8C8C]">
+											{formatDate(transaction.created_at)}
+										</span>
+									</div>
+									<span
+										className={`text-sm font-semibold ${getPointColor(
+											transaction.point_amount,
+										)}`}
+									>
+										{transaction.point_amount > 0 ? "+" : ""}
+										{transaction.point_amount.toLocaleString()}P
 									</span>
 								</div>
-								<span
-									className={`text-sm font-semibold ${
-										transaction.points > 0 ? "text-[#133A1B]" : "text-[#F73535]"
-									}`}
-								>
-									{transaction.points > 0 ? "+" : ""}
-									{transaction.points.toLocaleString()}P
-								</span>
+								{index < transactions.length - 1 && (
+									<div className="h-px bg-[#E5E5E5]" />
+								)}
 							</div>
-							{index < transactions.length - 1 && (
-								<div className="h-px bg-[#E5E5E5]" />
-							)}
-						</div>
-					))}
-				</div>
+						))}
+					</div>
+				)}
 			</div>
 
 			{/* 포인트 적립 안내 섹션 */}
@@ -119,7 +130,7 @@ const PointsPage = () => {
 					</div>
 					<ul className="flex flex-col gap-2 list-disc list-inside ml-4">
 						<li className="text-sm text-[#8C8C8C]">
-							2025.07.12 이후 구매액의 1%가 포인트로 적립됩니다.
+							구매액의 1%가 포인트로 적립됩니다.
 						</li>
 						<li className="text-sm text-[#8C8C8C]">리뷰 작성 시 50P 지급</li>
 						<li className="text-sm text-[#8C8C8C]">

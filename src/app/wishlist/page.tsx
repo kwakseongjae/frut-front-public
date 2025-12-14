@@ -1,129 +1,91 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import ChevronRightIcon from "@/assets/icon/ic_chevron_right_grey_17.svg";
 import ProductCard from "@/components/ProductCard";
 import ProtectedRoute from "@/components/ProtectedRoute";
-
-type SortOption = "latest" | "price" | "reviews" | "rating";
-
-const sortOptions = [
-	{ value: "latest", label: "최신순" },
-	{ value: "price", label: "가격순" },
-	{ value: "reviews", label: "리뷰많은순" },
-	{ value: "rating", label: "별점높은순" },
-];
+import { useUserProfile } from "@/lib/api/hooks/use-users";
+import { useWishlist } from "@/lib/api/hooks/use-wishlist";
+import type { Product } from "@/lib/api/products";
 
 function WishlistPage() {
-	const [selectedSort, setSelectedSort] = useState<SortOption>("latest");
-	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-	const dropdownRef = useRef<HTMLDivElement>(null);
+  // 프로필 정보 조회
+  const { data: profile, isLoading: isProfileLoading } = useUserProfile();
+  // 찜목록 조회
+  const { data: wishlistItems, isLoading: isWishlistLoading } = useWishlist();
 
-	// 더미 데이터
-	const userName = "김프룻프룻프룻";
-	const wishlistCount = 10;
-	const wishlistItems = Array.from({ length: 10 }, (_, index) => index + 1);
+  const userName = profile?.username || "";
+  const displayUserName =
+    userName.length > 10 ? `${userName.slice(0, 10)}...` : userName;
+  const wishlistCount = wishlistItems?.length || 0;
 
-	// 외부 클릭으로 드롭다운 닫기
-	useEffect(() => {
-		const handleClickOutside = (event: MouseEvent) => {
-			if (
-				dropdownRef.current &&
-				!dropdownRef.current.contains(event.target as Node)
-			) {
-				setIsDropdownOpen(false);
-			}
-		};
+  // WishlistItem을 Product 타입으로 변환
+  const products: Product[] =
+    wishlistItems?.map((item) => ({
+      id: item.product_id,
+      farm_id: item.farm_id,
+      farm_name: item.farm_name,
+      farm_profile_image: item.farm_image || null,
+      category_name: "",
+      product_name: item.product_name,
+      display_price: item.price,
+      display_cost_price: item.cost_price,
+      display_discount_rate: item.discount_rate,
+      status: "ACTIVE" as const,
+      is_recommended: false,
+      badges: item.badges || [],
+      rating_avg: item.rating_avg,
+      review_count: item.review_count,
+      view_count: 0,
+      days_remaining: null,
+      main_image: item.image_url,
+      is_wished: true, // 찜목록에 있는 상품은 항상 찜한 상태
+      created_at: item.created_at,
+      updated_at: item.created_at,
+    })) || [];
 
-		if (isDropdownOpen) {
-			document.addEventListener("mousedown", handleClickOutside);
-		}
+  return (
+    <ProtectedRoute>
+      <div className="flex flex-col min-h-screen">
+        {/* 유저 정보 영역 */}
+        <div className="px-5 py-2">
+          <div className="flex flex-col">
+            {isProfileLoading ? (
+              <h2 className="text-lg font-semibold text-[#262626] flex items-center">
+                <span className="text-[#8C8C8C]">로딩 중...</span>
+              </h2>
+            ) : (
+              <h2 className="text-lg font-semibold text-[#262626] flex items-center">
+                <span className="text-[#277937]">{displayUserName}</span>
+                <span>님이 찜한 상품</span>
+              </h2>
+            )}
+            <p className="text-sm text-[#8C8C8C] mt-1">
+              총 <span className="text-[#262626]">{wishlistCount}</span>개의
+              상품이 찜해져 있습니다
+            </p>
+          </div>
+        </div>
 
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-		};
-	}, [isDropdownOpen]);
-
-	const handleSortChange = (sort: SortOption) => {
-		setSelectedSort(sort);
-		setIsDropdownOpen(false);
-	};
-
-	const selectedSortLabel =
-		sortOptions.find((option) => option.value === selectedSort)?.label ||
-		"최신순";
-
-	return (
-		<ProtectedRoute>
-			<div className="flex flex-col min-h-screen">
-				{/* 유저 정보 및 필터 영역 */}
-				<div className="px-5 py-2">
-					<div className="flex items-center justify-between">
-						{/* 유저 정보 */}
-						<div className="flex flex-col">
-							<h2 className="text-lg font-semibold text-[#262626] flex items-center">
-								<span className="text-[#277937] max-w-[80px] truncate">
-									{userName}
-								</span>
-								<span>님이 찜한 상품</span>
-							</h2>
-							<p className="text-sm text-[#8C8C8C] mt-1">
-								총 <span className="text-[#262626]">{wishlistCount}</span>개의
-								상품이 찜해져 있습니다
-							</p>
-						</div>
-
-						{/* 필터 드롭다운 */}
-						<div className="relative" ref={dropdownRef}>
-							<button
-								type="button"
-								onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-								className="flex  justify-between items-center gap-2 w-30 px-3 py-2.5 border border-[#D9D9D9] rounded-lg text-sm text-[#262626] bg-white"
-							>
-								<span>{selectedSortLabel}</span>
-								<ChevronRightIcon
-									className={`transform transition-transform ${
-										isDropdownOpen ? "rotate-270" : "rotate-90"
-									}`}
-								/>
-							</button>
-
-							{/* 드롭다운 메뉴 */}
-							{isDropdownOpen && (
-								<div className="absolute right-0 top-full mt-1 w-full bg-white border border-[#D9D9D9] rounded-lg shadow-lg z-20">
-									{sortOptions.map((option) => (
-										<button
-											key={option.value}
-											type="button"
-											onClick={() =>
-												handleSortChange(option.value as SortOption)
-											}
-											className={`w-full px-3 py-2.5 text-sm text-left first:rounded-t-lg last:rounded-b-lg ${
-												selectedSort === option.value
-													? "text-[#133A1B] font-medium bg-[#F0F8F0]"
-													: "text-[#262626] hover:bg-[#F8F8F8]"
-											}`}
-										>
-											{option.label}
-										</button>
-									))}
-								</div>
-							)}
-						</div>
-					</div>
-				</div>
-
-				{/* 상품 목록 영역 */}
-				<div className="flex-1 px-5 pt-3 pb-6">
-					<div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-						{wishlistItems.map((itemId) => (
-							<ProductCard key={itemId} id={itemId} />
-						))}
-					</div>
-				</div>
-			</div>
-		</ProtectedRoute>
-	);
+        {/* 상품 목록 영역 */}
+        <div className="flex-1 px-5 pt-3 pb-6">
+          {isWishlistLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-[#8C8C8C]">찜한 상품이 없습니다.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
 }
 
 export default WishlistPage;

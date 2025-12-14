@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import CloseIcon from "@/assets/icon/ic_close_white_bg_grey_17.svg";
 import SearchIcon from "@/assets/icon/ic_search_grey_22.svg";
 import ProductCard from "@/components/ProductCard";
+import { useInfiniteProducts } from "@/lib/api/hooks/use-products";
 
 const SearchPageContent = () => {
 	const router = useRouter();
@@ -18,24 +19,50 @@ const SearchPageContent = () => {
 	// 추천 검색어 데이터
 	const recommendedSearches = ["사과", "복숭아", "지혁이농장", "수박", "참외"];
 
-	// 더미 검색 결과 데이터 생성
-	const generateSearchResults = () => {
-		const results = [];
-		for (let i = 1; i <= 10; i++) {
-			results.push({
-				id: i,
-				originalPrice: 39800 + i * 1000,
-				discountedPrice: 17900 + i * 500,
-				discountRate: 30 + (i % 20),
-				tags: ["고당도", "특가", "신선함"].slice(0, 2 + (i % 2)),
-				isSpecialOffer: i % 3 === 0,
-			});
-		}
-		return results;
-	};
+	const observerTarget = useRef<HTMLDivElement>(null);
 
-	const searchResults = currentSearchTerm ? generateSearchResults() : [];
-	const resultCount = searchResults.length;
+	// 검색 API 호출 (검색어가 있을 때만)
+	const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+		useInfiniteProducts(
+			currentSearchTerm ? { type: "search", q: currentSearchTerm } : undefined,
+		);
+
+	// 모든 페이지의 상품을 평탄화 (안전하게 처리)
+	const products = data?.pages?.flatMap((page) => page?.results ?? []) ?? [];
+	const resultCount = data?.pages?.[0]?.count ?? 0;
+
+	// 스켈레톤 로딩용 고유 ID 생성
+	const skeletonIds = useMemo(
+		() => Array.from({ length: 6 }, () => crypto.randomUUID()),
+		[],
+	);
+
+	// Intersection Observer로 무한스크롤 구현
+	useEffect(() => {
+		if (!currentSearchTerm) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+					fetchNextPage();
+				}
+			},
+			{
+				threshold: 0.1,
+			},
+		);
+
+		const currentTarget = observerTarget.current;
+		if (currentTarget) {
+			observer.observe(currentTarget);
+		}
+
+		return () => {
+			if (currentTarget) {
+				observer.unobserve(currentTarget);
+			}
+		};
+	}, [hasNextPage, isFetchingNextPage, fetchNextPage, currentSearchTerm]);
 
 	// localStorage에서 최근 검색어 불러오기 및 URL 파라미터 처리
 	useEffect(() => {
@@ -175,19 +202,37 @@ const SearchPageContent = () => {
 
 					{/* 검색 결과 목록 */}
 					<div className="px-5 pb-4">
-						<div className="grid grid-cols-2 gap-4">
-							{searchResults.map((product) => (
-								<ProductCard
-									key={product.id}
-									id={product.id}
-									originalPrice={product.originalPrice}
-									discountedPrice={product.discountedPrice}
-									discountRate={product.discountRate}
-									tags={product.tags}
-									isSpecialOffer={product.isSpecialOffer}
-								/>
-							))}
-						</div>
+						{isLoading ? (
+							<div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+								{skeletonIds.map((id) => (
+									<div
+										key={`search-skeleton-${id}`}
+										className="w-full aspect-[1/1] bg-[#D9D9D9] animate-pulse rounded"
+									/>
+								))}
+							</div>
+						) : products.length > 0 ? (
+							<>
+								<div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+									{products.map((product) => (
+										<ProductCard key={product.id} product={product} />
+									))}
+								</div>
+								{/* 무한스크롤 트리거 */}
+								<div
+									ref={observerTarget}
+									className="h-10 flex items-center justify-center py-4"
+								>
+									{isFetchingNextPage && (
+										<div className="text-sm text-[#8C8C8C]">로딩 중...</div>
+									)}
+								</div>
+							</>
+						) : (
+							<div className="flex items-center justify-center py-20">
+								<p className="text-[#8C8C8C]">검색 결과가 없습니다.</p>
+							</div>
+						)}
 					</div>
 				</>
 			)}

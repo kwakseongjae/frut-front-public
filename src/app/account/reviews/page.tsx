@@ -104,7 +104,7 @@ const ReviewsPage = () => {
 	return (
 		<div className="flex flex-col min-h-screen bg-white">
 			{/* 헤더 영역 */}
-			<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5 border-b border-[#E5E5E5]">
+			<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5">
 				<button
 					type="button"
 					onClick={() => window.history.back()}

@@ -3,32 +3,43 @@
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
+import { useChangePassword } from "@/lib/api/hooks/use-auth";
 
 const ChangePasswordPage = () => {
 	const router = useRouter();
+	const changePasswordMutation = useChangePassword();
 	const currentPasswordId = useId();
 	const newPasswordId = useId();
 	const confirmPasswordId = useId();
 	const [currentPassword, setCurrentPassword] = useState("");
 	const [newPassword, setNewPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
+	const [error, setError] = useState<string | null>(null);
 
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
+		setError(null);
+
 		if (!currentPassword || !newPassword || !confirmPassword) {
-			alert("모든 필드를 입력해주세요.");
+			setError("모든 필드를 입력해주세요.");
 			return;
 		}
+
 		if (newPassword !== confirmPassword) {
-			alert("새 비밀번호가 일치하지 않습니다.");
+			setError("새 비밀번호가 일치하지 않습니다.");
 			return;
 		}
-		// 비밀번호 변경 로직
-		console.log("비밀번호 변경:", {
-			currentPassword,
-			newPassword,
-			confirmPassword,
-		});
-		router.back();
+
+		try {
+			await changePasswordMutation.mutateAsync({
+				currentPassword,
+				newPassword,
+				newPasswordConfirm: confirmPassword,
+			});
+		} catch (err) {
+			setError(
+				err instanceof Error ? err.message : "비밀번호 변경에 실패했습니다.",
+			);
+		}
 	};
 
 	return (
@@ -53,6 +64,11 @@ const ChangePasswordPage = () => {
 
 			{/* 콘텐츠 영역 */}
 			<div className="flex-1 px-5 py-4">
+				{error && (
+					<div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+						{error}
+					</div>
+				)}
 				<div className="flex flex-col gap-4">
 					{/* 현재 비밀번호 */}
 					<div>
@@ -68,7 +84,8 @@ const ChangePasswordPage = () => {
 							value={currentPassword}
 							onChange={(e) => setCurrentPassword(e.target.value)}
 							placeholder="현재 비밀번호를 입력하세요"
-							className="w-full p-3 border border-[#D9D9D9] rounded text-sm text-[#262626] placeholder:text-[#8C8C8C] focus:outline-none focus:border-[#133A1B]"
+							disabled={changePasswordMutation.isPending}
+							className="w-full p-3 border border-[#D9D9D9] rounded text-sm text-[#262626] placeholder:text-[#8C8C8C] focus:outline-none focus:border-[#133A1B] disabled:opacity-50"
 						/>
 					</div>
 
@@ -85,8 +102,9 @@ const ChangePasswordPage = () => {
 							id={newPasswordId}
 							value={newPassword}
 							onChange={(e) => setNewPassword(e.target.value)}
-							placeholder="새 비밀번호를 입력하세요"
-							className="w-full p-3 border border-[#D9D9D9] rounded text-sm text-[#262626] placeholder:text-[#8C8C8C] focus:outline-none focus:border-[#133A1B]"
+							placeholder="새 비밀번호를 입력하세요 (8자 이상, 영문/숫자/특수문자 조합)"
+							disabled={changePasswordMutation.isPending}
+							className="w-full p-3 border border-[#D9D9D9] rounded text-sm text-[#262626] placeholder:text-[#8C8C8C] focus:outline-none focus:border-[#133A1B] disabled:opacity-50"
 						/>
 					</div>
 
@@ -104,7 +122,8 @@ const ChangePasswordPage = () => {
 							value={confirmPassword}
 							onChange={(e) => setConfirmPassword(e.target.value)}
 							placeholder="새 비밀번호를 다시 입력하세요"
-							className="w-full p-3 border border-[#D9D9D9] rounded text-sm text-[#262626] placeholder:text-[#8C8C8C] focus:outline-none focus:border-[#133A1B]"
+							disabled={changePasswordMutation.isPending}
+							className="w-full p-3 border border-[#D9D9D9] rounded text-sm text-[#262626] placeholder:text-[#8C8C8C] focus:outline-none focus:border-[#133A1B] disabled:opacity-50"
 						/>
 					</div>
 				</div>
@@ -115,15 +134,25 @@ const ChangePasswordPage = () => {
 				<button
 					type="button"
 					onClick={handleSubmit}
-					disabled={!currentPassword || !newPassword || !confirmPassword}
+					disabled={
+						!currentPassword ||
+						!newPassword ||
+						!confirmPassword ||
+						changePasswordMutation.isPending
+					}
 					className={`w-full py-4 bg-[#133A1B] text-white font-semibold text-sm ${
-						!currentPassword || !newPassword || !confirmPassword
+						!currentPassword ||
+						!newPassword ||
+						!confirmPassword ||
+						changePasswordMutation.isPending
 							? "opacity-50 cursor-not-allowed"
 							: ""
 					}`}
 					aria-label="비밀번호 변경하기"
 				>
-					비밀번호 변경하기
+					{changePasswordMutation.isPending
+						? "변경 중..."
+						: "비밀번호 변경하기"}
 				</button>
 			</div>
 		</div>
