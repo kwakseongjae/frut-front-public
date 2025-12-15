@@ -5,6 +5,7 @@ import {
   type ProductListParams,
   productsApi,
   productsQueryKeys,
+  type SellerProductsParams,
 } from "../products";
 
 export const useProducts = (params?: ProductListParams) => {
@@ -75,5 +76,23 @@ export const useCategories = (isActive?: boolean) => {
   return useQuery({
     queryKey: productsQueryKeys.categories(isActive),
     queryFn: () => productsApi.getCategories(isActive),
+  });
+};
+
+export const useSellerProducts = (
+  params: SellerProductsParams & { enabled?: boolean }
+) => {
+  const { enabled = true, ...queryParams } = params;
+  return useQuery({
+    queryKey: productsQueryKeys.sellerProducts(queryParams.farm_id),
+    queryFn: () => productsApi.getSellerProducts(queryParams),
+    enabled,
+  });
+};
+
+export const useMySellerItems = () => {
+  return useQuery({
+    queryKey: productsQueryKeys.mySellerItems(),
+    queryFn: () => productsApi.getMySellerItems(),
   });
 };

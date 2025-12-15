@@ -8,6 +8,8 @@ import {
 } from "@tanstack/react-query";
 import {
   type BestFarmsAllParams,
+  type GetFarmNewsParams,
+  type GetFarmProfileParams,
   sellersApi,
   sellersQueryKeys,
 } from "../sellers";
@@ -59,7 +61,7 @@ export const useToggleFollowFarm = () => {
 
   return useMutation({
     mutationFn: (farmId: number) => sellersApi.toggleFollowFarm(farmId),
-    onSuccess: () => {
+    onSuccess: (_, farmId) => {
       // 베스트 농장 목록 쿼리 무효화하여 팔로우 상태 업데이트
       // 모든 파라미터 조합에 대해 무효화하기 위해 prefix 사용
       queryClient.invalidateQueries({
@@ -75,6 +77,10 @@ export const useToggleFollowFarm = () => {
       queryClient.invalidateQueries({
         queryKey: sellersQueryKeys.followedFarms(),
       });
+      // 해당 농장 프로필도 무효화하여 팔로워 수 업데이트
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.farmProfile(farmId),
+      });
     },
   });
 };
@@ -83,5 +89,33 @@ export const useFollowedFarms = () => {
   return useQuery({
     queryKey: sellersQueryKeys.followedFarms(),
     queryFn: () => sellersApi.getFollowedFarms(),
+  });
+};
+
+export const useFarmProfile = (params: GetFarmProfileParams) => {
+  return useQuery({
+    queryKey: sellersQueryKeys.farmProfile(params.farm_id),
+    queryFn: () => sellersApi.getFarmProfile(params),
+  });
+};
+
+export const useFarmNews = (params: GetFarmNewsParams) => {
+  return useQuery({
+    queryKey: sellersQueryKeys.farmNews(params.farm_id),
+    queryFn: () => sellersApi.getFarmNews(params),
+  });
+};
+
+export const useMySellerProfile = () => {
+  return useQuery({
+    queryKey: sellersQueryKeys.myProfile(),
+    queryFn: () => sellersApi.getMyProfile(),
+  });
+};
+
+export const useMyFarmNews = () => {
+  return useQuery({
+    queryKey: sellersQueryKeys.myFarmNews(),
+    queryFn: () => sellersApi.getMyFarmNews(),
   });
 };

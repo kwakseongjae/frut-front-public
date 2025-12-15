@@ -45,6 +45,10 @@ export interface ProductListParams {
   page?: number;
 }
 
+export interface SellerProductsParams {
+  farm_id: number;
+}
+
 export interface PaginatedResponse<T> {
   count: number;
   next: string | null;
@@ -250,6 +254,26 @@ export const productsApi = {
     const data = await apiClient.get<Category[]>(endpoint);
     return data;
   },
+
+  getSellerProducts: async (
+    params: SellerProductsParams
+  ): Promise<Product[]> => {
+    const searchParams = new URLSearchParams();
+    searchParams.append("farm_id", params.farm_id.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = `/api/products/seller/items${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const data = await apiClient.get<Product[]>(endpoint);
+    return data;
+  },
+
+  getMySellerItems: async (): Promise<Product[]> => {
+    const data = await apiClient.get<Product[]>("/api/products/seller/items");
+    return data;
+  },
 };
 
 export const productsQueryKeys = {
@@ -263,4 +287,7 @@ export const productsQueryKeys = {
     [...queryKeys.products.all, "categories", isActive] as const,
   reviews: (productId: number, page?: number) =>
     [...queryKeys.products.all, "reviews", productId, page] as const,
+  sellerProducts: (farmId: number) =>
+    [...queryKeys.products.all, "seller-products", farmId] as const,
+  mySellerItems: () => [...queryKeys.products.all, "my-seller-items"] as const,
 };

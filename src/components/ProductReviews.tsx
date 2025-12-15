@@ -341,7 +341,7 @@ const ProductReviews = ({
                   </div>
 
                   {/* 리뷰 내용 */}
-                  <p className="text-sm text-[#262626] mb-3 leading-relaxed">
+                  <p className="text-sm text-[#262626] mb-3 leading-relaxed whitespace-pre-line">
                     {review.review_content}
                   </p>
 
@@ -379,7 +379,7 @@ const ProductReviews = ({
                           {formatDate(review.reply.created_at)}
                         </span>
                       </div>
-                      <p className="text-xs text-[#262626] leading-relaxed">
+                      <p className="text-xs text-[#262626] leading-relaxed whitespace-pre-line">
                         {review.reply.reply_content}
                       </p>
                     </div>

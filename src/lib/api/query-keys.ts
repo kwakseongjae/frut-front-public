@@ -24,4 +24,11 @@ export const queryKeys = {
     all: ["orders"] as const,
     detail: (id: number) => ["orders", "detail", id] as const,
   },
+  reviews: {
+    all: ["reviews"] as const,
+    reviewable: () => ["reviews", "reviewable"] as const,
+    written: () => ["reviews", "written"] as const,
+    seller: (farmId: number) => ["reviews", "seller", farmId] as const,
+    mySeller: () => ["reviews", "my-seller"] as const,
+  },
 } as const;

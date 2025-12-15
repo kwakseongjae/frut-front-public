@@ -38,6 +38,65 @@ export interface FollowedFarm {
 export interface FollowedFarmsResponse
   extends PaginatedResponse<FollowedFarm> {}
 
+export interface FarmProfile {
+  id: number;
+  farm_name: string;
+  farm_description: string;
+  farm_image: string | null;
+  farm_image_url: string;
+  location: string;
+  contact_phone: string;
+  contact_email: string;
+  follower_count: number;
+  is_own_farm?: boolean;
+  average_rating?: string;
+  total_review_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SellerProfile {
+  id: number;
+  farm_name: string;
+  farm_description: string;
+  farm_image: string | null;
+  farm_image_url: string;
+  location: string;
+  contact_phone: string;
+  contact_email: string;
+  follower_count: number;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  average_rating?: string;
+  total_review_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetFarmProfileParams {
+  farm_id: number;
+}
+
+export interface FarmNewsImage {
+  id: number;
+  image_url: string;
+}
+
+export interface FarmNews {
+  id: number;
+  farm_name: string;
+  farm_image: string;
+  title: string;
+  content: string;
+  images: FarmNewsImage[];
+  created_at: string;
+}
+
+export interface GetFarmNewsParams {
+  farm_id: number;
+}
+
 export const sellersApi = {
   getBestFarms: async (): Promise<BestFarm[]> => {
     const data = await apiClient.get<BestFarm[]>("/api/sellers/best-farms");
@@ -78,6 +137,42 @@ export const sellersApi = {
     );
     return data;
   },
+
+  getFarmProfile: async (
+    params: GetFarmProfileParams
+  ): Promise<FarmProfile> => {
+    const searchParams = new URLSearchParams();
+    searchParams.append("farm_id", params.farm_id.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = `/api/sellers/profile${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const data = await apiClient.get<FarmProfile>(endpoint);
+    return data;
+  },
+
+  getFarmNews: async (params: GetFarmNewsParams): Promise<FarmNews[]> => {
+    const searchParams = new URLSearchParams();
+    searchParams.append("farm_id", params.farm_id.toString());
+
+    const queryString = searchParams.toString();
+    const endpoint = `/api/sellers/news${queryString ? `?${queryString}` : ""}`;
+
+    const data = await apiClient.get<FarmNews[]>(endpoint);
+    return data;
+  },
+
+  getMyProfile: async (): Promise<SellerProfile> => {
+    const data = await apiClient.get<SellerProfile>("/api/sellers/profile");
+    return data;
+  },
+
+  getMyFarmNews: async (): Promise<FarmNews[]> => {
+    const data = await apiClient.get<FarmNews[]>("/api/sellers/news");
+    return data;
+  },
 };
 
 export const sellersQueryKeys = {
@@ -86,4 +181,10 @@ export const sellersQueryKeys = {
   bestFarmsAll: (params?: BestFarmsAllParams) =>
     [...queryKeys.sellers.all, "best-farms-all", params] as const,
   followedFarms: () => [...queryKeys.sellers.all, "followed-farms"] as const,
+  farmProfile: (farmId: number) =>
+    [...queryKeys.sellers.all, "profile", farmId] as const,
+  farmNews: (farmId: number) =>
+    [...queryKeys.sellers.all, "news", farmId] as const,
+  myProfile: () => [...queryKeys.sellers.all, "my-profile"] as const,
+  myFarmNews: () => [...queryKeys.sellers.all, "my-news"] as const,
 };
