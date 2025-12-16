@@ -8,6 +8,7 @@ import BentRightDownIcon from "@/assets/icon/ic_bent_right_down_black_24.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ChevronRightWhiteIcon from "@/assets/icon/ic_chevron_right_white_24.svg";
 import CloseIcon from "@/assets/icon/ic_close_black_24.svg";
+import DotMenuIcon from "@/assets/icon/ic_dot_menu_grey_14.svg";
 import InternetIcon from "@/assets/icon/ic_internet_grey_16.svg";
 import LikeIcon from "@/assets/icon/ic_like_grey_15.svg";
 import LocationIcon from "@/assets/icon/ic_location_pin_grey_15.svg";
@@ -20,6 +21,7 @@ import ProfileImageViewer from "@/components/ProfileImageViewer";
 import ReviewImageViewer from "@/components/ReviewImageViewer";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  useDeleteNews,
   useMyFarmNews,
   useMySellerProfile,
 } from "@/lib/api/hooks/use-best-farms";
@@ -61,7 +63,7 @@ interface Review {
 
 const BusinessProfilePage = () => {
   const router = useRouter();
-  const { user, isInitialized } = useAuth();
+  const { user, isInitialized, isLoggedIn } = useAuth();
   const { data: profileData, isLoading: isProfileLoading } =
     useMySellerProfile();
   const { data: newsData, isLoading: isNewsLoading } = useMyFarmNews();
@@ -82,16 +84,29 @@ const BusinessProfilePage = () => {
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileViewerOpen, setIsProfileViewerOpen] = useState(false);
+  const [openNewsMenuId, setOpenNewsMenuId] = useState<number | null>(null);
   const contentRefs = useRef<{ [key: number]: HTMLParagraphElement | null }>(
     {}
   );
 
-  // SELLER가 아니면 접근 차단
+  // 접근 제어: 초기화 완료 후, 로그인되어 있고, user가 로드되었을 때만 체크
   useEffect(() => {
-    if (isInitialized && user?.user_type !== "SELLER") {
+    // 초기화가 완료되지 않았거나 로그인하지 않은 경우 대기
+    if (!isInitialized || !isLoggedIn) {
+      return;
+    }
+
+    // user가 아직 로드되지 않은 경우 대기 (로그인은 되어있지만 user 정보가 없는 경우)
+    if (!user) {
+      return;
+    }
+
+    // SELLER가 아니면 접근 차단
+    if (user.user_type !== "SELLER") {
+      alert("판매자 권한이 없습니다.");
       router.replace("/account");
     }
-  }, [isInitialized, user, router]);
+  }, [isInitialized, isLoggedIn, user, router]);
 
   const handleMenuClick = () => {
     setIsSidebarOpen(true);
@@ -109,6 +124,22 @@ const BusinessProfilePage = () => {
   const handleWriteNews = () => {
     setIsSidebarOpen(false);
     router.push("/account/business/news/write");
+  };
+
+  const deleteNewsMutation = useDeleteNews();
+
+  const handleDeleteNews = async (newsId: number) => {
+    setOpenNewsMenuId(null);
+    const confirmed = window.confirm("정말 삭제하시겠습니까?");
+    if (confirmed) {
+      try {
+        await deleteNewsMutation.mutateAsync(newsId);
+        alert("소식이 삭제되었습니다.");
+      } catch (error) {
+        console.error("소식 삭제 실패:", error);
+        alert("소식 삭제에 실패했습니다. 다시 시도해주세요.");
+      }
+    }
   };
 
   const handleSettlement = () => {
@@ -185,8 +216,19 @@ const BusinessProfilePage = () => {
     };
   });
 
-  // 초기화 중이거나 SELLER가 아니면 로딩 표시
-  if (!isInitialized || user?.user_type !== "SELLER") {
+  // 초기화 중이거나 로그인하지 않았거나 user가 아직 로드되지 않은 경우 로딩 표시
+  if (!isInitialized || !isLoggedIn || !user) {
+    return (
+      <div className="flex flex-col min-h-screen bg-white">
+        <div className="flex items-center justify-center py-20">
+          <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // SELLER가 아니면 접근 차단 (이미 useEffect에서 처리되지만, 렌더링 방지)
+  if (user.user_type !== "SELLER") {
     return (
       <div className="flex flex-col min-h-screen bg-white">
         <div className="flex items-center justify-center py-20">
@@ -373,7 +415,7 @@ const BusinessProfilePage = () => {
                 return (
                   <div key={post.id}>
                     <div className="px-5 py-4">
-                      <div className="flex gap-3 mb-3">
+                      <div className="flex gap-3 mb-3 relative">
                         {/* 프로필 이미지 */}
                         {newsItem?.farm_image ? (
                           <div className="w-10 h-10 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden">
@@ -394,6 +436,58 @@ const BusinessProfilePage = () => {
                           <span className="text-xs text-[#8C8C8C]">
                             {post.date}
                           </span>
+                        </div>
+                        {/* 더보기 버튼 */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenNewsMenuId(
+                                openNewsMenuId === post.id ? null : post.id
+                              );
+                            }}
+                            className="p-1 cursor-pointer"
+                            aria-label="더보기"
+                          >
+                            <DotMenuIcon className="rotate-90" />
+                          </button>
+                          {/* 드롭다운 모달 */}
+                          {openNewsMenuId === post.id && (
+                            <>
+                              <button
+                                type="button"
+                                className="fixed inset-0 z-10"
+                                onClick={() => setOpenNewsMenuId(null)}
+                                aria-label="메뉴 닫기"
+                              />
+                              <div className="absolute top-full right-0 mt-1 bg-white border border-[#D9D9D9] rounded shadow-lg z-20 min-w-[120px]">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenNewsMenuId(null);
+                                    router.push(
+                                      `/account/business/news/edit/${post.id}`
+                                    );
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-[#262626] hover:bg-[#F5F5F5] first:rounded-t last:rounded-b"
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteNews(post.id);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-[#F5F5F5] first:rounded-t last:rounded-b"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="mb-5">

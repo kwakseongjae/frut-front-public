@@ -3,11 +3,14 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import BentRightDownIcon from "@/assets/icon/ic_bent_right_down_black_24.svg";
 import ChevronRightIcon from "@/assets/icon/ic_chevron_right_grey_17.svg";
 import EmptyStarIcon from "@/assets/icon/ic_star_grey_18.svg";
 import StarIcon from "@/assets/icon/ic_start_lightgreen_18.svg";
-import { fruits } from "@/assets/images/dummy";
-import { useProductReviews } from "@/lib/api/hooks/use-product-reviews";
+import {
+  useProductReviewImages,
+  useProductReviews,
+} from "@/lib/api/hooks/use-product-reviews";
 import ReviewImageViewer from "./ReviewImageViewer";
 
 interface ProductReviewsProps {
@@ -38,6 +41,10 @@ const ProductReviews = ({
     isLoading,
     isFetching,
   } = useProductReviews(productId);
+
+  // 리뷰 이미지 목록 조회
+  const { data: reviewImagesData, isLoading: isLoadingImages } =
+    useProductReviewImages(productId);
 
   // 모든 페이지의 리뷰를 평탄화
   const allReviews = useMemo(() => {
@@ -113,37 +120,13 @@ const ProductReviews = ({
     });
   }, [filteredReviews, sortBy]);
 
-  // 더미 이미지 생성 (20개)
-  const dummyReviewImages = useMemo(() => {
-    const images: string[] = [];
-    for (let i = 0; i < 20; i++) {
-      images.push(fruits[i % fruits.length]?.image || "");
-    }
-    return images.filter(Boolean);
-  }, []);
-
-  // 리뷰 이미지 수집 (이미지가 있는 리뷰만, 없으면 더미 이미지 사용)
+  // 리뷰 이미지 목록 (API에서 가져온 이미지)
   const reviewImages = useMemo(() => {
-    const actualImages = allReviews
-      .filter((review) => review.image_url !== null)
-      .map((review) => review.image_url as string);
-
-    // 실제 이미지가 없으면 더미 이미지 사용
-    if (actualImages.length === 0) {
-      return dummyReviewImages.slice(0, 4); // 최대 4개만 표시
-    }
-
-    return actualImages.slice(0, 4);
-  }, [allReviews, dummyReviewImages]);
+    return reviewImagesData?.results?.map((img) => img.image_url) || [];
+  }, [reviewImagesData]);
 
   // 전체 리뷰 이미지 개수
-  const totalReviewImages = useMemo(() => {
-    const actualCount = allReviews.filter(
-      (review) => review.image_url !== null
-    ).length;
-    // 실제 이미지가 없으면 더미 이미지 개수 사용
-    return actualCount > 0 ? actualCount : dummyReviewImages.length;
-  }, [allReviews, dummyReviewImages]);
+  const totalReviewImages = reviewImagesData?.count || 0;
 
   const handleViewMoreImages = () => {
     router.push(`/products/${productId}/reviews`);
@@ -195,34 +178,24 @@ const ProductReviews = ({
         {/* 리뷰 이미지 미리보기 */}
         {reviewImages.length > 0 && (
           <div className="flex gap-2">
-            {reviewImages.slice(0, 3).map((image) => {
-              const imageIndex = reviewImages.indexOf(image);
-              return (
-                <button
-                  key={`preview-${image}`}
-                  type="button"
-                  onClick={() => {
-                    const actualImages = allReviews
-                      .filter((r) => r.image_url !== null)
-                      .map((r) => r.image_url as string);
-                    const allImages =
-                      actualImages.length > 0
-                        ? actualImages
-                        : dummyReviewImages;
-                    handleImageClick(allImages, allImages.indexOf(image));
-                  }}
-                  className="w-[calc((100%-16px)/4)] aspect-square rounded relative overflow-hidden bg-[#D9D9D9] flex-shrink-0 cursor-pointer"
-                  aria-label={`리뷰 이미지 미리보기 ${imageIndex + 1}`}
-                >
-                  <Image
-                    src={image}
-                    alt={`리뷰 이미지 미리보기 ${imageIndex + 1}`}
-                    fill
-                    className="object-cover"
-                  />
-                </button>
-              );
-            })}
+            {reviewImages.slice(0, 3).map((image, index) => (
+              <button
+                key={`preview-${index}-${image}`}
+                type="button"
+                onClick={() => {
+                  handleImageClick(reviewImages, index);
+                }}
+                className="w-[calc((100%-16px)/4)] aspect-square rounded relative overflow-hidden bg-[#D9D9D9] flex-shrink-0 cursor-pointer"
+                aria-label={`리뷰 이미지 미리보기 ${index + 1}`}
+              >
+                <Image
+                  src={image}
+                  alt={`리뷰 이미지 미리보기 ${index + 1}`}
+                  fill
+                  className="object-cover"
+                />
+              </button>
+            ))}
             {totalReviewImages >= 4 && (
               <button
                 type="button"
@@ -370,18 +343,39 @@ const ProductReviews = ({
 
                   {/* 판매자 답변 */}
                   {review.reply && (
-                    <div className="mt-3 p-3 bg-[#F8F8F8] rounded">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-[#133A1B]">
-                          판매자
-                        </span>
-                        <span className="text-xs text-[#8C8C8C]">
-                          {formatDate(review.reply.created_at)}
-                        </span>
+                    <div className="mt-3">
+                      <div className="flex items-start gap-2 mb-2">
+                        {/* 휘어있는 아이콘 */}
+                        <div className="flex-shrink-0 mt-0.5">
+                          <BentRightDownIcon />
+                        </div>
+                        {/* 프로필 이미지와 농장명 */}
+                        <div className="flex items-center gap-2">
+                          {/* 농장 아바타 */}
+                          <div className="w-8 h-8 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden">
+                            {review.reply.farm_image ? (
+                              <Image
+                                src={review.reply.farm_image}
+                                alt={review.reply.farm_name || "농장"}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#D9D9D9]" />
+                            )}
+                          </div>
+                          {/* 농장명 */}
+                          <span className="text-sm font-medium text-[#262626]">
+                            {review.reply.farm_name}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-xs text-[#262626] leading-relaxed whitespace-pre-line">
-                        {review.reply.reply_content}
-                      </p>
+                      {/* 답변 내용 (회색 배경 박스) */}
+                      <div className="ml-[32px] bg-[#F5F5F5] rounded p-3">
+                        <p className="text-sm text-[#262626] leading-relaxed whitespace-pre-line">
+                          {review.reply.reply_content}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

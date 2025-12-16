@@ -62,3 +62,12 @@ export const cartApi = {
 		await apiClient.patch<void>(`/api/shopping/cart/${id}`, request);
 	},
 };
+
+
+
+
+
+
+
+
+

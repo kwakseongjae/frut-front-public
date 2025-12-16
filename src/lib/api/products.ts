@@ -70,6 +70,9 @@ export interface ReviewReply {
   id: number;
   reply_content: string;
   created_at: string;
+  farm_id?: number;
+  farm_name?: string;
+  farm_image?: string;
 }
 
 export interface ProductReview {
@@ -86,6 +89,17 @@ export interface ProductReview {
 export interface ProductReviewsResponse
   extends PaginatedResponse<ProductReview> {}
 
+export interface ProductReviewImage {
+  review_id: number;
+  image_url: string;
+  user_name: string;
+  rating: number;
+  created_at: string;
+}
+
+export interface ProductReviewImagesResponse
+  extends PaginatedResponse<ProductReviewImage> {}
+
 export interface ProductImage {
   id: number;
   image_url: string;
@@ -98,6 +112,7 @@ export interface ProductDetail {
   farm_id: number;
   farm_name: string;
   farm_image: string | null;
+  category_id: number;
   category_name: string;
   product_name: string;
   product_description: string;
@@ -274,7 +289,364 @@ export const productsApi = {
     const data = await apiClient.get<Product[]>("/api/products/seller/items");
     return data;
   },
+
+  getSellerManagementProducts: async (
+    params?: SellerManagementParams
+  ): Promise<SellerManagementResponse> => {
+    const searchParams = new URLSearchParams();
+
+    if (params?.q) {
+      searchParams.append("q", params.q);
+    }
+
+    if (params?.status) {
+      searchParams.append("status", params.status);
+    }
+
+    const queryString = searchParams.toString();
+    const endpoint = `/api/products/seller/management${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const data = await apiClient.get<SellerManagementResponse>(endpoint);
+    return data;
+  },
+
+  updateProductStatus: async (
+    productId: number,
+    status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK"
+  ): Promise<Product> => {
+    // multipart/form-data로 전송
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/products/${productId}`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const formData = new FormData();
+    formData.append("status", status);
+
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("상품 상태 변경에 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+    if (jsonData.success && jsonData.data) {
+      return jsonData.data as Product;
+    }
+    throw new Error("상품 상태 변경에 실패했습니다.");
+  },
+
+  deleteProduct: async (productId: number): Promise<void> => {
+    await apiClient.delete(`/api/products/${productId}`);
+  },
+
+  createProduct: async (request: CreateProductRequest): Promise<Product> => {
+    // multipart/form-data로 전송
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/products`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const formData = new FormData();
+    formData.append("category_id", request.category_id.toString());
+    formData.append("product_name", request.product_name);
+
+    if (request.product_description) {
+      formData.append("product_description", request.product_description);
+    }
+    if (request.detail_content) {
+      formData.append("detail_content", request.detail_content);
+    }
+    if (request.producer_name) {
+      formData.append("producer_name", request.producer_name);
+    }
+    if (request.producer_location) {
+      formData.append("producer_location", request.producer_location);
+    }
+    if (request.production_date) {
+      formData.append("production_date", request.production_date);
+    }
+    if (request.production_year !== undefined) {
+      formData.append("production_year", request.production_year.toString());
+    }
+    if (request.expiry_type) {
+      formData.append("expiry_type", request.expiry_type);
+    }
+    if (request.legal_notice) {
+      formData.append("legal_notice", request.legal_notice);
+    }
+    if (request.product_composition) {
+      formData.append("product_composition", request.product_composition);
+    }
+    if (request.handling_method) {
+      formData.append("handling_method", request.handling_method);
+    }
+    if (request.customer_service_phone) {
+      formData.append("customer_service_phone", request.customer_service_phone);
+    }
+    if (request.status) {
+      formData.append("status", request.status);
+    }
+
+    // images 배열 추가
+    request.images.forEach((imagePath) => {
+      formData.append("images", imagePath);
+    });
+
+    // options가 있으면 JSON 문자열로 추가
+    if (request.options && request.options.length > 0) {
+      formData.append("options", JSON.stringify(request.options));
+    }
+
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("상품 등록에 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+    if (jsonData.success && jsonData.data) {
+      return jsonData.data as Product;
+    }
+    throw new Error("상품 등록에 실패했습니다.");
+  },
+
+  updateProduct: async (
+    productId: number,
+    request: UpdateProductRequest
+  ): Promise<Product> => {
+    // multipart/form-data로 전송
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/products/${productId}`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const formData = new FormData();
+    formData.append("category_id", request.category_id.toString());
+    formData.append("product_name", request.product_name);
+
+    if (request.product_description) {
+      formData.append("product_description", request.product_description);
+    }
+    if (request.detail_content) {
+      formData.append("detail_content", request.detail_content);
+    }
+    if (request.producer_name) {
+      formData.append("producer_name", request.producer_name);
+    }
+    if (request.producer_location) {
+      formData.append("producer_location", request.producer_location);
+    }
+    if (request.production_date) {
+      formData.append("production_date", request.production_date);
+    }
+    if (request.production_year !== undefined) {
+      formData.append("production_year", request.production_year.toString());
+    }
+    if (request.expiry_type) {
+      formData.append("expiry_type", request.expiry_type);
+    }
+    if (request.legal_notice) {
+      formData.append("legal_notice", request.legal_notice);
+    }
+    if (request.product_composition) {
+      formData.append("product_composition", request.product_composition);
+    }
+    if (request.handling_method) {
+      formData.append("handling_method", request.handling_method);
+    }
+    if (request.customer_service_phone) {
+      formData.append("customer_service_phone", request.customer_service_phone);
+    }
+    if (request.status) {
+      formData.append("status", request.status);
+    }
+
+    // images 배열 추가
+    request.images.forEach((imagePath) => {
+      formData.append("images", imagePath);
+    });
+
+    // options가 있으면 JSON 문자열로 추가
+    if (request.options && request.options.length > 0) {
+      formData.append("options", JSON.stringify(request.options));
+    }
+
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("상품 수정에 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+    if (jsonData.success && jsonData.data) {
+      return jsonData.data as Product;
+    }
+    throw new Error("상품 수정에 실패했습니다.");
+  },
+
+  getProductReviewImages: async (
+    productId: number
+  ): Promise<ProductReviewImagesResponse> => {
+    // API 응답이 직접 페이지네이션 형태일 수 있으므로 직접 처리
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/products/${productId}/reviews/images`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error("리뷰 이미지 목록을 불러오는데 실패했습니다.");
+      }
+
+      const jsonData = await response.json();
+
+      // 응답이 { success, data } 형식인지 확인
+      if (jsonData.success && jsonData.data) {
+        // data가 페이지네이션 형식인지 확인
+        if (
+          jsonData.data.count !== undefined &&
+          jsonData.data.results !== undefined
+        ) {
+          return jsonData.data as ProductReviewImagesResponse;
+        }
+        // data가 직접 페이지네이션 형식인 경우
+        return jsonData.data as ProductReviewImagesResponse;
+      }
+
+      // 직접 페이지네이션 형식인 경우
+      if (jsonData.count !== undefined && jsonData.results !== undefined) {
+        return jsonData as ProductReviewImagesResponse;
+      }
+
+      // 기본값 반환
+      return {
+        count: 0,
+        next: null,
+        previous: null,
+        results: [],
+      };
+    } catch (error) {
+      console.error("리뷰 이미지 목록 조회 실패:", error);
+      // 에러 발생 시 기본값 반환
+      return {
+        count: 0,
+        next: null,
+        previous: null,
+        results: [],
+      };
+    }
+  },
 };
+
+export interface SellerManagementStatistics {
+  total_count: number;
+  active_count: number;
+  out_of_stock_count: number;
+}
+
+export interface SellerManagementProduct {
+  id: number;
+  product_name: string;
+  category_name: string;
+  display_cost_price: number;
+  display_price: number;
+  status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
+  sold_count: number;
+  main_image: string | null;
+}
+
+export interface SellerManagementResponse {
+  statistics: SellerManagementStatistics;
+  products: SellerManagementProduct[];
+}
+
+export interface SellerManagementParams {
+  q?: string;
+  status?: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
+}
+
+export interface CreateProductOption {
+  name: string;
+  price: number;
+  cost_price: number;
+  discount_rate: number;
+}
+
+export interface CreateProductRequest {
+  category_id: number;
+  product_name: string;
+  product_description?: string;
+  detail_content?: string;
+  producer_name?: string;
+  producer_location?: string;
+  production_date?: string; // YYYY-MM-DD
+  production_year?: number;
+  expiry_type?: string;
+  legal_notice?: string;
+  product_composition?: string;
+  handling_method?: string;
+  customer_service_phone?: string;
+  status?: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
+  images: string[]; // GCS paths
+  options?: CreateProductOption[];
+}
+
+export type UpdateProductRequest = CreateProductRequest;
 
 export const productsQueryKeys = {
   all: queryKeys.products.all,
@@ -287,7 +659,16 @@ export const productsQueryKeys = {
     [...queryKeys.products.all, "categories", isActive] as const,
   reviews: (productId: number, page?: number) =>
     [...queryKeys.products.all, "reviews", productId, page] as const,
+  reviewImages: (productId: number) =>
+    [...queryKeys.products.all, "review-images", productId] as const,
   sellerProducts: (farmId: number) =>
     [...queryKeys.products.all, "seller-products", farmId] as const,
   mySellerItems: () => [...queryKeys.products.all, "my-seller-items"] as const,
+  sellerManagement: (params?: SellerManagementParams) =>
+    [
+      ...queryKeys.products.all,
+      "seller-management",
+      params?.q,
+      params?.status,
+    ] as const,
 };

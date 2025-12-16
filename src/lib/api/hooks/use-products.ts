@@ -1,11 +1,19 @@
 "use client";
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  type CreateProductRequest,
   type ProductListParams,
   productsApi,
   productsQueryKeys,
+  type SellerManagementParams,
   type SellerProductsParams,
+  type UpdateProductRequest,
 } from "../products";
 
 export const useProducts = (params?: ProductListParams) => {
@@ -94,5 +102,103 @@ export const useMySellerItems = () => {
   return useQuery({
     queryKey: productsQueryKeys.mySellerItems(),
     queryFn: () => productsApi.getMySellerItems(),
+  });
+};
+
+export const useSellerManagementProducts = (
+  params?: SellerManagementParams
+) => {
+  return useQuery({
+    queryKey: productsQueryKeys.sellerManagement(params),
+    queryFn: () => productsApi.getSellerManagementProducts(params),
+  });
+};
+
+export const useUpdateProductStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      productId,
+      status,
+    }: {
+      productId: number;
+      status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
+    }) => productsApi.updateProductStatus(productId, status),
+    onSuccess: () => {
+      // 상품관리 목록 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: [productsQueryKeys.all[0], "seller-management"],
+      });
+      // 내 상품 목록도 무효화
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.mySellerItems(),
+      });
+    },
+  });
+};
+
+export const useDeleteProduct = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (productId: number) => productsApi.deleteProduct(productId),
+    onSuccess: () => {
+      // 상품관리 목록 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: [productsQueryKeys.all[0], "seller-management"],
+      });
+      // 내 상품 목록도 무효화
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.mySellerItems(),
+      });
+    },
+  });
+};
+
+export const useCreateProduct = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: CreateProductRequest) =>
+      productsApi.createProduct(request),
+    onSuccess: () => {
+      // 상품관리 목록 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: [productsQueryKeys.all[0], "seller-management"],
+      });
+      // 내 상품 목록도 무효화
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.mySellerItems(),
+      });
+    },
+  });
+};
+
+export const useUpdateProduct = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      productId,
+      request,
+    }: {
+      productId: number;
+      request: UpdateProductRequest;
+    }) => productsApi.updateProduct(productId, request),
+    onSuccess: (_, variables) => {
+      // 상품 상세 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.detail(variables.productId),
+      });
+      // 상품관리 목록 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: [productsQueryKeys.all[0], "seller-management"],
+      });
+      // 내 상품 목록도 무효화
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.mySellerItems(),
+      });
+    },
   });
 };

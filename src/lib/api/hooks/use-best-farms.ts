@@ -6,12 +6,16 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { productsQueryKeys } from "../products";
+import { queryKeys } from "../query-keys";
 import {
   type BestFarmsAllParams,
+  type CreateNewsRequest,
   type GetFarmNewsParams,
   type GetFarmProfileParams,
   sellersApi,
   sellersQueryKeys,
+  type UpdateProfileRequest,
 } from "../sellers";
 
 export const useBestFarms = () => {
@@ -117,5 +121,121 @@ export const useMyFarmNews = () => {
   return useQuery({
     queryKey: sellersQueryKeys.myFarmNews(),
     queryFn: () => sellersApi.getMyFarmNews(),
+  });
+};
+
+export const useCreateNews = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: CreateNewsRequest) => sellersApi.createNews(request),
+    onSuccess: () => {
+      // 내 소식 목록 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myFarmNews(),
+      });
+      // 내 프로필의 소식도 무효화 (프로필에서 소식을 보여줄 수 있음)
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myProfile(),
+      });
+    },
+  });
+};
+
+export const useUpdateNews = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      newsId,
+      request,
+    }: {
+      newsId: number;
+      request: CreateNewsRequest;
+    }) => sellersApi.updateNews(newsId, request),
+    onSuccess: () => {
+      // 내 소식 목록 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myFarmNews(),
+      });
+      // 내 프로필의 소식도 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myProfile(),
+      });
+    },
+  });
+};
+
+export const useDeleteNews = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (newsId: number) => sellersApi.deleteNews(newsId),
+    onSuccess: () => {
+      // 내 소식 목록 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myFarmNews(),
+      });
+      // 내 프로필의 소식도 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myProfile(),
+      });
+    },
+  });
+};
+
+export const useUpdateSellerProfile = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: UpdateProfileRequest) =>
+      sellersApi.updateProfile(request),
+    onSuccess: (updatedProfile) => {
+      // 내 프로필 조회 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myProfile(),
+      });
+
+      // 비즈프로필 소식 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.myFarmNews(),
+      });
+
+      // 해당 농장의 프로필 조회 쿼리 무효화 (farm_id = id)
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.farmProfile(updatedProfile.id),
+      });
+
+      // 해당 농장의 소식 쿼리 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.farmNews(updatedProfile.id),
+      });
+
+      // 베스트 농장 목록 무효화 (프로필 이미지가 변경될 수 있음)
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.bestFarms(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: [sellersQueryKeys.all[0], "best-farms-all"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [sellersQueryKeys.all[0], "best-farms-all-infinite"],
+      });
+
+      // 팔로우한 농장 목록 무효화
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.followedFarms(),
+      });
+
+      // 내 상품 목록 무효화 (비즈프로필 페이지의 상품 탭)
+      queryClient.invalidateQueries({
+        queryKey: productsQueryKeys.mySellerItems(),
+      });
+
+      // 내 판매자 후기 무효화 (비즈프로필 페이지의 후기 탭)
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.reviews.mySeller(),
+      });
+    },
   });
 };

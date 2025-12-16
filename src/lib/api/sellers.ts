@@ -173,7 +173,84 @@ export const sellersApi = {
     const data = await apiClient.get<FarmNews[]>("/api/sellers/news");
     return data;
   },
+
+  updateProfile: async (
+    request: UpdateProfileRequest
+  ): Promise<SellerProfile> => {
+    const data = await apiClient.patch<SellerProfile>(
+      "/api/sellers/profile",
+      request
+    );
+    return data;
+  },
+
+  createNews: async (request: CreateNewsRequest): Promise<FarmNews> => {
+    const data = await apiClient.post<FarmNews>("/api/sellers/news", request);
+    return data;
+  },
+
+  updateNews: async (
+    newsId: number,
+    request: CreateNewsRequest
+  ): Promise<FarmNews> => {
+    const data = await apiClient.patch<FarmNews>(
+      `/api/sellers/news/${newsId}`,
+      request
+    );
+    return data;
+  },
+
+  deleteNews: async (newsId: number): Promise<void> => {
+    await apiClient.delete<void>(`/api/sellers/news/${newsId}`);
+  },
+
+  submitApplication: async (
+    formData: FormData
+  ): Promise<{ success: boolean; message?: string }> => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/sellers/application`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        success: false,
+        message: "요청 처리 중 오류가 발생했습니다.",
+      }));
+      throw new Error(errorData.message || "요청 처리 중 오류가 발생했습니다.");
+    }
+
+    const data = await response.json();
+    return data;
+  },
 };
+
+export interface UpdateProfileRequest {
+  farm_name: string;
+  location: string;
+  farm_description: string;
+  farm_image: string | null;
+}
+
+export interface CreateNewsRequest {
+  title: string;
+  content: string;
+  images: string[];
+}
 
 export const sellersQueryKeys = {
   all: queryKeys.sellers.all,

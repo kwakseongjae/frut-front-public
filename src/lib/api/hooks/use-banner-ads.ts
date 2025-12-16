@@ -21,3 +21,12 @@ export const useIncrementBannerClick = () => {
 		mutationFn: (id: number) => operationsApi.incrementBannerClick(id),
 	});
 };
+
+
+
+
+
+
+
+
+
