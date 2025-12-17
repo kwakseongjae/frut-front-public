@@ -6,12 +6,18 @@ import CameraIcon from "@/assets/icon/ic_camera_black_18.svg";
 import CheckboxGreenIcon from "@/assets/icon/ic_checkbox_green_18.svg";
 import CheckboxGreyIcon from "@/assets/icon/ic_checkbox_grey_18.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
+import CircleCheckGreenIcon from "@/assets/icon/ic_circle_check_green_18.svg";
+import CircleCheckRedIcon from "@/assets/icon/ic_circle_check_red_18.svg";
 import CopyIcon from "@/assets/icon/ic_copy_black_20.svg";
 import CreditCardIcon from "@/assets/icon/ic_credit_card_black_20.svg";
 import DocumentIcon from "@/assets/icon/ic_document_black_20.svg";
 import InfoCircleGreyIcon from "@/assets/icon/ic_info_circle_grey_20.svg";
 import UploadIcon from "@/assets/icon/ic_upload_black_15.svg";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import {
+  useSellerApplication,
+  useUpdateApplication,
+} from "@/lib/api/hooks/use-best-farms";
 import { sellersApi } from "@/lib/api/sellers";
 import { uploadApi } from "@/lib/api/upload";
 
@@ -124,6 +130,150 @@ const BusinessProfileApplyPage = () => {
 
   // 탭 상태
   const [activeTab, setActiveTab] = useState<"write" | "status">("write");
+
+  // 신청 현황 조회 (신청 현황 탭일 때만 조회)
+  const { data: applicationData, isLoading: isLoadingApplication } =
+    useSellerApplication();
+  const updateApplicationMutation = useUpdateApplication();
+
+  // 반려된 서류 재제출을 위한 상태
+  const [rejectedFiles, setRejectedFiles] = useState<
+    Record<number, File | null>
+  >({});
+
+  // 날짜 포맷팅
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}.${month}.${day}`;
+  };
+
+  // 파일 종류 한글 매핑
+  const getFileKindDisplay = (kinds: string): string => {
+    const kindMap: Record<string, string> = {
+      사업자등록증: "사업자등록증",
+      통신판매업신고증: "통신판매업 신고증",
+      대표자신분증사본: "대표자 신분증 사본",
+      통장사본: "통장 사본",
+      농장프로필사진: "농장 프로필 사진",
+      GAP인증서: "GAP 인증서",
+      유기농인증서: "유기농 / 친환경 인증서",
+      HACCP인증서: "HACCP 인증서",
+      잔류농약검사서: "잔류 농약 검사서",
+    };
+    return kindMap[kinds] || kinds;
+  };
+
+  // 필수/선택 서류 분류
+  const categorizeFiles = () => {
+    if (!applicationData?.files) return { required: [], optional: [] };
+
+    const requiredKinds = [
+      "사업자등록증",
+      "통신판매업신고증",
+      "대표자신분증사본",
+      "통장사본",
+      "농장프로필사진",
+    ];
+
+    const required: typeof applicationData.files = [];
+    const optional: typeof applicationData.files = [];
+
+    applicationData.files.forEach((file) => {
+      if (requiredKinds.includes(file.kinds)) {
+        required.push(file);
+      } else {
+        optional.push(file);
+      }
+    });
+
+    return { required, optional };
+  };
+
+  // 반려된 서류 파일 선택 핸들러
+  const handleRejectedFileSelect = (
+    fileId: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setRejectedFiles((prev) => ({
+        ...prev,
+        [fileId]: file,
+      }));
+    }
+  };
+
+  // 파일 종류를 API 필드명으로 매핑
+  const getFileKindToFieldName = (kinds: string): string | null => {
+    const kindMap: Record<string, string> = {
+      사업자등록증: "business_registration",
+      통신판매업신고증: "telecom_sales_report",
+      대표자신분증사본: "representative_id",
+      통장사본: "bank_account_copy",
+      농장프로필사진: "farm_profile_photo",
+      GAP인증서: "gap_certificate",
+      유기농인증서: "organic_certificate",
+      HACCP인증서: "haccp_certificate",
+      잔류농약검사서: "pesticide_test_report",
+    };
+    return kindMap[kinds] || null;
+  };
+
+  // 반려 서류 제출하기 핸들러
+  const handleSubmitRejectedFiles = async () => {
+    if (!applicationData || !isAllRejectedFilesUploaded()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. 반려된 서류 파일들을 GCS에 업로드
+      const updateData: Record<string, string> = {};
+
+      for (const [fileIdStr, file] of Object.entries(rejectedFiles)) {
+        if (file) {
+          const fileId = parseInt(fileIdStr, 10);
+          const applicationFile = applicationData.files.find(
+            (f) => f.id === fileId
+          );
+
+          if (applicationFile) {
+            const gcsPath = await uploadFileToGCS(file);
+            const fieldName = getFileKindToFieldName(applicationFile.kinds);
+
+            if (fieldName) {
+              updateData[fieldName] = gcsPath;
+            }
+          }
+        }
+      }
+
+      // 2. PATCH 요청
+      await updateApplicationMutation.mutateAsync(updateData);
+
+      alert("반려 서류가 제출되었습니다.");
+      // 파일 선택 초기화
+      setRejectedFiles({});
+    } catch (error) {
+      console.error("반려 서류 제출 실패:", error);
+      alert("반려 서류 제출에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 반려된 서류가 모두 업로드되었는지 확인
+  const isAllRejectedFilesUploaded = () => {
+    if (!applicationData?.files) return false;
+    const rejectedFilesList = applicationData.files.filter(
+      (file) => file.status === "REJECTED"
+    );
+    return rejectedFilesList.every((file) => rejectedFiles[file.id] !== null);
+  };
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -754,20 +904,308 @@ const BusinessProfileApplyPage = () => {
           ) : (
             /* 신청 현황 탭 */
             <div className="flex flex-col gap-[10px]">
-              {/* 접수 상태 카드 예시 */}
-              <div className="px-5 py-6 bg-white border border-[#D9D9D9] rounded shadow-[0_0_10px_2px_rgba(0,0,0,0.1)] relative">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-base font-semibold text-[#262626]">
-                      판매자 등록 신청
-                    </h3>
-                    <p className="text-sm text-[#262626]">신청일: 2025.00.00</p>
-                  </div>
-                  <div className="px-3 py-1 bg-[#F5F5F5] rounded">
-                    <p className="text-xs font-medium text-[#262626]">접수</p>
-                  </div>
+              {isLoadingApplication ? (
+                <div className="flex items-center justify-center py-20">
+                  <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
                 </div>
-              </div>
+              ) : applicationData !== null && applicationData !== undefined ? (
+                <>
+                  {/* 신청 정보 카드 */}
+                  <div className="px-5 py-6 bg-white border border-[#D9D9D9] rounded shadow-[0_0_10px_2px_rgba(0,0,0,0.1)]">
+                    <div className="flex items-start justify-between">
+                      <div className="flex flex-col gap-1">
+                        <h3 className="text-base font-semibold text-[#262626]">
+                          판매자 등록 신청
+                        </h3>
+                        <p className="text-sm text-[#262626]">
+                          신청일: {formatDate(applicationData.applied_at)}
+                        </p>
+                      </div>
+                      <div
+                        className={`px-3 py-1 rounded ${
+                          applicationData.status === "PENDING"
+                            ? "bg-[#F5F5F5] text-[#262626]"
+                            : applicationData.status === "APPROVED"
+                            ? "bg-[#E6F5E9] text-[#133A1B]"
+                            : "bg-[#FFE6E6] text-[#F73535]"
+                        }`}
+                      >
+                        <p className="text-xs font-medium">
+                          {applicationData.status === "REJECTED"
+                            ? "반려"
+                            : applicationData.status_display}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 반려 알림 카드 (REJECTED 상태일 때만) */}
+                  {applicationData.status === "REJECTED" &&
+                    applicationData.files.some(
+                      (file) => file.status === "REJECTED"
+                    ) && (
+                      <div className="px-5 py-4 bg-[#FFF5F5] border border-[#F73535] rounded">
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-[#F73535] flex items-center justify-center shrink-0 mt-0.5">
+                            <span className="text-white text-xs font-bold">
+                              ×
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <p className="text-sm font-semibold text-[#F73535]">
+                              일부 서류가 반려되었습니다
+                            </p>
+                            <p className="text-xs text-[#F73535]">
+                              반려된 서류를 다시 제출해주세요.
+                            </p>
+                            <p className="text-xs text-[#F73535]">
+                              반려 사유를 확인하고 수정 후 재제출하시면 됩니다.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                  {/* 제출 서류 섹션 (REJECTED 상태일 때만) */}
+                  {applicationData.status === "REJECTED" && (
+                    <div className="-mx-5">
+                      {(() => {
+                        const { required, optional } = categorizeFiles();
+                        return (
+                          <>
+                            {/* 구분선 */}
+                            {required.length > 0 && (
+                              <div className="h-[10px] bg-[#F7F7F7]" />
+                            )}
+                            {/* 필수 제출 서류 */}
+                            {required.length > 0 && (
+                              <div className="px-5 py-6 mt-[10px] mx-5 bg-white shadow-[0_0_10px_2px_rgba(0,0,0,0.1)] flex flex-col gap-3">
+                                <h4 className="text-sm font-semibold text-[#262626]">
+                                  필수 제출 서류
+                                </h4>
+                                <div className="flex flex-col gap-2">
+                                  {required.map((file) => {
+                                    const hasUploadedFile =
+                                      rejectedFiles[file.id] !== null &&
+                                      rejectedFiles[file.id] !== undefined;
+
+                                    return (
+                                      <div
+                                        key={file.id}
+                                        className="px-4 py-3 bg-white border border-[#D9D9D9] rounded flex items-center justify-between"
+                                      >
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                          {file.status === "APPROVED" ? (
+                                            <CircleCheckGreenIcon />
+                                          ) : file.status === "REJECTED" ? (
+                                            <CircleCheckRedIcon />
+                                          ) : null}
+                                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                                            <span className="text-sm font-medium text-[#262626]">
+                                              {getFileKindDisplay(file.kinds)}
+                                            </span>
+                                            {file.rejected_reason && (
+                                              <span className="text-xs text-[#F73535]">
+                                                {file.rejected_reason}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          {file.status === "APPROVED" && (
+                                            <div className="px-2 py-1 rounded bg-[#E6F5E9]">
+                                              <p className="text-xs font-medium text-[#133A1B]">
+                                                승인
+                                              </p>
+                                            </div>
+                                          )}
+                                          {file.status === "REJECTED" && (
+                                            <>
+                                              {!hasUploadedFile ? (
+                                                <label className="cursor-pointer">
+                                                  <input
+                                                    type="file"
+                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    className="hidden"
+                                                    onChange={(e) =>
+                                                      handleRejectedFileSelect(
+                                                        file.id,
+                                                        e
+                                                      )
+                                                    }
+                                                  />
+                                                  <div className="px-3 py-1.5 border border-[#D9D9D9] rounded flex items-center gap-1 hover:bg-[#F5F5F5]">
+                                                    <UploadIcon />
+                                                    <span className="text-xs text-[#262626]">
+                                                      업로드
+                                                    </span>
+                                                  </div>
+                                                </label>
+                                              ) : (
+                                                <div className="px-2 py-1 rounded bg-[#E6F5E9]">
+                                                  <p className="text-xs font-medium text-[#133A1B]">
+                                                    업로드 완료
+                                                  </p>
+                                                </div>
+                                              )}
+                                              <div className="px-2 py-1 rounded bg-[#FFE6E6]">
+                                                <p className="text-xs font-medium text-[#F73535]">
+                                                  반려
+                                                </p>
+                                              </div>
+                                            </>
+                                          )}
+                                          {file.status === "PENDING" && (
+                                            <div className="px-2 py-1 rounded bg-[#F5F5F5]">
+                                              <p className="text-xs font-medium text-[#262626]">
+                                                검토 중
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 구분선 */}
+                            {required.length > 0 && optional.length > 0 && (
+                              <div className="h-[10px] bg-[#F7F7F7] my-[10px]" />
+                            )}
+
+                            {/* 선택 제출 서류 */}
+                            {optional.length > 0 && (
+                              <div className="px-5 py-6 bg-white shadow-[0_0_10px_2px_rgba(0,0,0,0.1)] flex flex-col gap-3 mx-5 mb-5">
+                                <h4 className="text-sm font-semibold text-[#262626]">
+                                  선택 제출 서류
+                                </h4>
+                                <div className="flex flex-col gap-2">
+                                  {optional.map((file) => {
+                                    const hasUploadedFile =
+                                      rejectedFiles[file.id] !== null &&
+                                      rejectedFiles[file.id] !== undefined;
+
+                                    return (
+                                      <div
+                                        key={file.id}
+                                        className="px-4 py-3 bg-white border border-[#D9D9D9] rounded flex items-center justify-between"
+                                      >
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                          {file.status === "APPROVED" ? (
+                                            <CircleCheckGreenIcon />
+                                          ) : file.status === "REJECTED" ? (
+                                            <CircleCheckRedIcon />
+                                          ) : null}
+                                          <div className="flex flex-col gap-1 flex-1 min-w-0">
+                                            <span className="text-sm font-medium text-[#262626]">
+                                              {getFileKindDisplay(file.kinds)}
+                                            </span>
+                                            {file.rejected_reason && (
+                                              <span className="text-xs text-[#F73535]">
+                                                {file.rejected_reason}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          {file.status === "APPROVED" && (
+                                            <div className="px-2 py-1 rounded bg-[#E6F5E9]">
+                                              <p className="text-xs font-medium text-[#133A1B]">
+                                                승인
+                                              </p>
+                                            </div>
+                                          )}
+                                          {file.status === "REJECTED" && (
+                                            <>
+                                              {!hasUploadedFile ? (
+                                                <label className="cursor-pointer">
+                                                  <input
+                                                    type="file"
+                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    className="hidden"
+                                                    onChange={(e) =>
+                                                      handleRejectedFileSelect(
+                                                        file.id,
+                                                        e
+                                                      )
+                                                    }
+                                                  />
+                                                  <div className="px-3 py-1.5 border border-[#D9D9D9] rounded flex items-center gap-1 hover:bg-[#F5F5F5]">
+                                                    <UploadIcon />
+                                                    <span className="text-xs text-[#262626]">
+                                                      업로드
+                                                    </span>
+                                                  </div>
+                                                </label>
+                                              ) : (
+                                                <div className="px-2 py-1 rounded bg-[#E6F5E9]">
+                                                  <p className="text-xs font-medium text-[#133A1B]">
+                                                    업로드 완료
+                                                  </p>
+                                                </div>
+                                              )}
+                                              <div className="px-2 py-1 rounded bg-[#FFE6E6]">
+                                                <p className="text-xs font-medium text-[#F73535]">
+                                                  반려
+                                                </p>
+                                              </div>
+                                            </>
+                                          )}
+                                          {file.status === "PENDING" && (
+                                            <div className="px-2 py-1 rounded bg-[#F5F5F5]">
+                                              <p className="text-xs font-medium text-[#262626]">
+                                                검토 중
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 반려 서류 제출하기 버튼 */}
+                            {applicationData.files.some(
+                              (file) => file.status === "REJECTED"
+                            ) && (
+                              <div className="px-5">
+                                <button
+                                  type="button"
+                                  onClick={handleSubmitRejectedFiles}
+                                  disabled={
+                                    !isAllRejectedFilesUploaded() ||
+                                    isSubmitting
+                                  }
+                                  className={`w-full py-3 rounded font-semibold text-sm ${
+                                    isAllRejectedFilesUploaded() &&
+                                    !isSubmitting
+                                      ? "bg-[#133A1B] text-white"
+                                      : "bg-[#D9D9D9] text-[#8C8C8C] cursor-not-allowed"
+                                  }`}
+                                >
+                                  {isSubmitting
+                                    ? "제출 중..."
+                                    : "반려 서류 제출하기"}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-20">
+                  <p className="text-sm text-[#8C8C8C]">
+                    신청 내역이 없습니다.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

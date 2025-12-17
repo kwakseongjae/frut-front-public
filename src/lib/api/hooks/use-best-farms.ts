@@ -13,8 +13,10 @@ import {
   type CreateNewsRequest,
   type GetFarmNewsParams,
   type GetFarmProfileParams,
+  type SellerApplication,
   sellersApi,
   sellersQueryKeys,
+  type UpdateApplicationRequest,
   type UpdateProfileRequest,
 } from "../sellers";
 
@@ -235,6 +237,32 @@ export const useUpdateSellerProfile = () => {
       // 내 판매자 후기 무효화 (비즈프로필 페이지의 후기 탭)
       queryClient.invalidateQueries({
         queryKey: queryKeys.reviews.mySeller(),
+      });
+    },
+  });
+};
+
+export const useSellerApplication = () => {
+  return useQuery<SellerApplication | null>({
+    queryKey: sellersQueryKeys.application(),
+    queryFn: async (): Promise<SellerApplication | null> => {
+      const data = await sellersApi.getApplicationMe();
+      return data;
+    },
+    retry: false,
+  });
+};
+
+export const useUpdateApplication = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: UpdateApplicationRequest) =>
+      sellersApi.updateApplicationMe(request),
+    onSuccess: () => {
+      // 신청 정보 쿼리 무효화하여 최신 데이터 가져오기
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.application(),
       });
     },
   });

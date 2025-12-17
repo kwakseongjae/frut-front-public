@@ -83,6 +83,11 @@ export interface FarmNewsImage {
   image_url: string;
 }
 
+export interface FarmNewsPath {
+  id: number;
+  path: string;
+}
+
 export interface FarmNews {
   id: number;
   farm_name: string;
@@ -90,6 +95,7 @@ export interface FarmNews {
   title: string;
   content: string;
   images: FarmNewsImage[];
+  paths?: FarmNewsPath[];
   created_at: string;
 }
 
@@ -237,6 +243,64 @@ export const sellersApi = {
     const data = await response.json();
     return data;
   },
+
+  getApplicationMe: async (): Promise<SellerApplication | null> => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/sellers/application/me`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      // 404 에러는 신청 내역이 없는 것으로 처리
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (!response.ok) {
+        throw new Error("신청 정보를 불러오는데 실패했습니다.");
+      }
+
+      const jsonData: SellerApplicationResponse = await response.json();
+
+      if (jsonData.success && jsonData.data) {
+        return jsonData.data;
+      }
+
+      return null;
+    } catch (error) {
+      // 네트워크 에러 등은 throw
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("신청 정보를 불러오는데 실패했습니다.");
+    }
+  },
+
+  updateApplicationMe: async (
+    request: UpdateApplicationRequest
+  ): Promise<{ success: boolean; message?: string }> => {
+    const data = await apiClient.patch<{ success: boolean; message?: string }>(
+      "/api/sellers/application/me",
+      request
+    );
+    return data;
+  },
 };
 
 export interface UpdateProfileRequest {
@@ -244,6 +308,67 @@ export interface UpdateProfileRequest {
   location: string;
   farm_description: string;
   farm_image: string | null;
+}
+
+export interface UpdateApplicationRequest {
+  business_name?: string;
+  business_number?: string;
+  representative_name?: string;
+  business_address?: string;
+  business_phone?: string;
+  application_reason?: string;
+  phone?: string;
+  email?: string;
+  farm_description?: string;
+  bank_name?: string;
+  account_number?: string;
+  account_holder?: string;
+  business_registration?: string;
+  telecom_sales_report?: string;
+  representative_id?: string;
+  bank_account_copy?: string;
+  farm_profile_photo?: string;
+  gap_certificate?: string;
+  organic_certificate?: string;
+  haccp_certificate?: string;
+  pesticide_test_report?: string;
+}
+
+export interface ApplicationFile {
+  id: number;
+  kinds: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  file_url: string;
+  original_filename: string;
+  rejected_reason: string | null;
+}
+
+export interface SellerApplication {
+  application_id: number;
+  business_name: string;
+  business_number: string;
+  representative_name: string;
+  business_address: string;
+  business_phone: string;
+  application_reason: string;
+  phone: string;
+  email: string;
+  farm_description: string;
+  privacy_policy_agreed: boolean;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  status_display: string;
+  applied_at: string;
+  processed_at: string | null;
+  files: ApplicationFile[];
+}
+
+export interface SellerApplicationResponse {
+  success: boolean;
+  data: SellerApplication;
+  message: string;
 }
 
 export interface CreateNewsRequest {
@@ -264,4 +389,5 @@ export const sellersQueryKeys = {
     [...queryKeys.sellers.all, "news", farmId] as const,
   myProfile: () => [...queryKeys.sellers.all, "my-profile"] as const,
   myFarmNews: () => [...queryKeys.sellers.all, "my-news"] as const,
+  application: () => [...queryKeys.sellers.all, "application", "me"] as const,
 };

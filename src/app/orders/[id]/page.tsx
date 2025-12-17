@@ -20,8 +20,7 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 	};
 
 	const handleCancelOrder = () => {
-		// 주문 취소 로직 구현
-		console.log("주문 취소");
+    router.push(`/orders/${orderId}/cancel`);
 	};
 
 	// 상태에 따른 색상 반환
@@ -45,34 +44,22 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 		}
 	};
 
-	// 배송 현황 상태 매핑
-	const getDeliveryStatuses = (status: string) => {
-		const statusDisplay = orderDetail?.item_status_display || "";
-		const isShipped = status === "SHIPPED" || statusDisplay === "배송중";
-		const isDelivered = status === "DELIVERED" || statusDisplay === "배송완료";
+  // 배송 현황 상태 매핑 (order_history 사용)
+  const getDeliveryStatuses = () => {
+    if (!orderDetail?.order_history) {
+      return [];
+    }
 
-		if (isShipped) {
-			return [
-				{ label: "상품 발송", isActive: false, isCompleted: false },
-				{ label: "집화", isActive: false, isCompleted: false },
-				{ label: "배송중", isActive: true, isCompleted: false },
-				{ label: "배송완료", isActive: false, isCompleted: false },
-			];
-		}
-		if (isDelivered) {
-			return [
-				{ label: "상품 발송", isActive: false, isCompleted: false },
-				{ label: "집화", isActive: false, isCompleted: false },
-				{ label: "배송중", isActive: false, isCompleted: false },
-				{ label: "배송완료", isActive: true, isCompleted: false },
-			];
-		}
-		return [
-			{ label: "상품 발송", isActive: false, isCompleted: false },
-			{ label: "집화", isActive: false, isCompleted: false },
-			{ label: "배송중", isActive: false, isCompleted: false },
-			{ label: "배송완료", isActive: false, isCompleted: false },
-		];
+    return orderDetail.order_history.map((historyItem) => {
+      const hasTimestamp = historyItem.timestamp !== "";
+      const isCurrentStatus = orderDetail.item_status === historyItem.status;
+
+      return {
+        label: historyItem.status_display,
+        isActive: isCurrentStatus && hasTimestamp,
+        isCompleted: hasTimestamp && !isCurrentStatus,
+      };
+    });
 	};
 
 	// 날짜 포맷팅
@@ -83,6 +70,21 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 		const day = String(date.getDate()).padStart(2, "0");
 		return `${year}.${month}.${day}`;
 	};
+
+  // 날짜 시간 포맷팅 (배송추적용)
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return { date: "", time: "" };
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return {
+      date: `${year}.${month}.${day}`,
+      time: `${hours}:${minutes}`,
+    };
+  };
 
 	// 이미지 URL 처리
 	const getImageUrl = (imageUrl: string | null) => {
@@ -151,11 +153,10 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 		);
 	}
 
-	const deliveryStatuses = getDeliveryStatuses(orderDetail.item_status);
+  const deliveryStatuses = getDeliveryStatuses();
 	const isBeforeDelivery =
 		orderDetail.item_status === "PENDING" ||
-		orderDetail.item_status === "CONFIRMED" ||
-		orderDetail.item_status_display === "상품준비중";
+    orderDetail.item_status === "CONFIRMED";
 
 	const orderDate = formatDate(orderDetail.ordered_at);
 	const productImageUrl = getImageUrl(orderDetail.product_main_image);
@@ -187,17 +188,20 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 							배송현황
 						</h2>
 						<div className="flex items-center justify-center gap-2">
-							{deliveryStatuses.map((status) => (
+              {deliveryStatuses.map((status, index) => (
 								<div key={status.label} className="flex items-center">
 									<span
 										className={`text-sm font-medium ${
-											status.isActive ? "text-[#133A1B]" : "text-[#8C8C8C]"
+                      status.isActive
+                        ? "text-[#133A1B]"
+                        : status.isCompleted
+                        ? "text-[#8C8C8C]"
+                        : "text-[#D9D9D9]"
 										}`}
 									>
 										{status.label}
 									</span>
-									{deliveryStatuses.indexOf(status) <
-										deliveryStatuses.length - 1 && <ChevronRightIcon />}
+                  {index < deliveryStatuses.length - 1 && <ChevronRightIcon />}
 								</div>
 							))}
 						</div>
@@ -205,6 +209,121 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 
 					{/* 구분선 */}
 					<div className="h-[10px] bg-[#F7F7F7]" />
+
+          {/* 배송추적 섹션 */}
+          {orderDetail.order_history &&
+            orderDetail.order_history.length > 0 && (
+              <>
+                <div className="px-5 py-4">
+                  <h2 className="text-base font-semibold text-[#262626] mb-4">
+                    배송추적
+                  </h2>
+                  <div className="flex flex-col gap-3">
+                    {orderDetail.order_history.map((historyItem) => {
+                      const hasTimestamp = historyItem.timestamp !== "";
+                      const isCurrentStatus =
+                        orderDetail.item_status === historyItem.status;
+                      const dateTime = hasTimestamp
+                        ? formatDateTime(historyItem.timestamp)
+                        : null;
+
+                      return (
+                        <div
+                          key={historyItem.status}
+                          className="flex justify-between items-start"
+                        >
+                          {/* 왼쪽: 날짜/시간 또는 대기중 */}
+                          <div className="flex flex-col">
+                            {hasTimestamp ? (
+                              <>
+                                <span
+                                  className={`text-sm ${
+                                    isCurrentStatus
+                                      ? "text-[#262626] font-medium"
+                                      : "text-[#8C8C8C]"
+                                  }`}
+                                >
+                                  {dateTime?.date}
+                                </span>
+                                <span
+                                  className={`text-sm ${
+                                    isCurrentStatus
+                                      ? "text-[#262626] font-medium"
+                                      : "text-[#8C8C8C]"
+                                  }`}
+                                >
+                                  {dateTime?.time}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-sm text-[#8C8C8C]">
+                                대기중
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 오른쪽: 상태명 */}
+                          <div className="flex flex-col">
+                            <span
+                              className={`text-sm font-medium ${
+                                isCurrentStatus && hasTimestamp
+                                  ? "text-[#262626]"
+                                  : hasTimestamp
+                                  ? "text-[#8C8C8C]"
+                                  : "text-[#8C8C8C]"
+                              }`}
+                            >
+                              {historyItem.status_display}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 구분선 */}
+                <div className="h-[10px] bg-[#F7F7F7]" />
+              </>
+            )}
+
+          {/* 송장정보 섹션 */}
+          {orderDetail.delivery_info?.tracking_number && (
+            <>
+              <div className="px-5 py-4">
+                <h2 className="text-base font-semibold text-[#262626] mb-4">
+                  송장정보
+                </h2>
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-[#262626]">운송장 번호</span>
+                    <span className="text-sm font-medium text-[#262626]">
+                      {orderDetail.delivery_info.tracking_number}
+                    </span>
+                  </div>
+                  {orderDetail.delivery_info.delivery_company && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-[#262626]">택배사</span>
+                      <span className="text-sm font-medium text-[#262626]">
+                        {orderDetail.delivery_info.delivery_company}
+                      </span>
+                    </div>
+                  )}
+                  {orderDetail.delivery_info.delivered_at && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-[#262626]">도착예정</span>
+                      <span className="text-sm font-medium text-[#262626]">
+                        {formatDate(orderDetail.delivery_info.delivered_at)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 구분선 */}
+              <div className="h-[10px] bg-[#F7F7F7]" />
+            </>
+          )}
 
 					{/* 주문 상품 상세 섹션 */}
 					<div className="px-5 py-4">
@@ -219,7 +338,7 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 							<div className="px-3.5 py-3 border-b border-[#E5E5E5]">
 								<span
 									className={`text-sm font-semibold ${getStatusColor(
-										orderDetail.item_status,
+                    orderDetail.item_status
 									)}`}
 								>
 									{orderDetail.item_status_display}
@@ -271,7 +390,7 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 									총 주문금액
 								</span>
 								<span className="font-semibold text-[#262626]">
-									{orderDetail.total_price.toLocaleString()}원
+                  {orderDetail.paid_amount.toLocaleString()}원
 								</span>
 							</div>
 						</div>
@@ -289,59 +408,37 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 							<div className="flex justify-between items-center">
 								<span className="text-sm text-[#262626]">결제 방법</span>
 								<span className="text-sm font-medium text-[#262626]">
-									{orderDetail.payment_info.pay_method_display}
+                  {orderDetail.pay_method_display}
 								</span>
 							</div>
 							<div className="flex justify-between items-center">
-								<span className="text-sm text-[#262626]">상품금액</span>
+                <span className="text-sm text-[#262626]">총 상품금액</span>
 								<span className="text-sm font-medium text-[#262626]">
-									{orderDetail.payment_info.total_amount.toLocaleString()}원
+                  {orderDetail.total_price.toLocaleString()}원
 								</span>
 							</div>
-							{orderDetail.payment_info.discount_amount > 0 && (
-								<div className="flex justify-between items-center">
-									<span className="text-sm text-[#262626]">할인금액</span>
-									<span className="text-sm font-medium text-[#FF6B6B]">
-										-{orderDetail.payment_info.discount_amount.toLocaleString()}
-										원
-									</span>
-								</div>
-							)}
-							{orderDetail.payment_info.coupon_discount_amount > 0 && (
+              {orderDetail.coupon_discount_amount > 0 && (
 								<div className="flex justify-between items-center">
 									<span className="text-sm text-[#262626]">쿠폰 할인</span>
-									<span className="text-sm font-medium text-[#FF6B6B]">
-										-
-										{orderDetail.payment_info.coupon_discount_amount.toLocaleString()}
-										원
+                  <span className="text-sm font-medium text-[#262626]">
+                    -{orderDetail.coupon_discount_amount.toLocaleString()}원
 									</span>
 								</div>
 							)}
-							{orderDetail.payment_info.point_used > 0 && (
+              {orderDetail.point_used > 0 && (
 								<div className="flex justify-between items-center">
-									<span className="text-sm text-[#262626]">포인트 사용</span>
-									<span className="text-sm font-medium text-[#FF6B6B]">
-										-{orderDetail.payment_info.point_used.toLocaleString()}원
+                  <span className="text-sm text-[#262626]">포인트 할인</span>
+                  <span className="text-sm font-medium text-[#262626]">
+                    -{orderDetail.point_used.toLocaleString()}원
 									</span>
 								</div>
 							)}
-							{orderDetail.delivery_info?.delivery_fee &&
-								orderDetail.delivery_info.delivery_fee > 0 && (
 									<div className="flex justify-between items-center">
 										<span className="text-sm text-[#262626]">배송비</span>
 										<span className="text-sm font-medium text-[#262626]">
-											{orderDetail.delivery_info?.delivery_fee.toLocaleString()}
-											원
-										</span>
-									</div>
-								)}
-							<div className="h-[1px] bg-[#262626] my-2" />
-							<div className="flex justify-between items-center">
-								<span className="font-semibold text-[#262626]">
-									최종 결제금액
-								</span>
-								<span className="text-lg font-semibold text-[#262626]">
-									{orderDetail.payment_info.amount.toLocaleString()}원
+                  {orderDetail.delivery_fee > 0
+                    ? `+${orderDetail.delivery_fee.toLocaleString()}원`
+                    : "0원"}
 								</span>
 							</div>
 						</div>
@@ -388,7 +485,8 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 
 				{/* 하단 플로팅 주문취소 버튼 (배송전일 때만 표시) */}
 				{isBeforeDelivery && (
-					<div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E5] px-5 py-3 z-20">
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E5E5] sm:left-auto sm:right-auto sm:w-[640px] sm:mx-auto z-20">
+            <div className="px-5 py-3">
 						<button
 							type="button"
 							onClick={handleCancelOrder}
@@ -397,6 +495,7 @@ const OrderDetailPage = ({ params }: { params: Promise<{ id: string }> }) => {
 						>
 							주문취소
 						</button>
+            </div>
 					</div>
 				)}
 			</div>

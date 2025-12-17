@@ -8,7 +8,12 @@ import OrderItem from "@/components/OrderItem";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useOrders } from "@/lib/api/hooks/use-order";
 
-type OrderStatus = "상품준비중" | "배송중" | "배송완료" | "취소완료";
+type OrderStatus =
+  | "상품접수"
+  | "상품준비중"
+  | "배송시작"
+  | "배송완료"
+  | "취소완료";
 
 interface OrderItemData {
 	id: number;
@@ -23,14 +28,20 @@ interface Order {
 	id: number;
 	date: string;
 	status: OrderStatus;
+  originalStatus:
+    | "PENDING"
+    | "CONFIRMED"
+    | "SHIPPED"
+    | "DELIVERED"
+    | "CANCELLED";
 	items: OrderItemData[];
 	totalAmount: number;
-	merchantUid: string;
+  orderNumber: string;
 	paymentInfo: {
-		total_amount: number;
+    total_price: number;
 		point_used: number;
 		coupon_discount_amount: number;
-		amount: number;
+    paid_amount: number;
 	};
 }
 
@@ -41,10 +52,12 @@ const OrdersPage = () => {
 
 	const getStatusColor = (status: OrderStatus) => {
 		switch (status) {
-			case "배송중":
-				return "text-[#8BC53F]";
+      case "상품접수":
+        return "text-[#EB8C34]";
 			case "상품준비중":
 				return "text-[#EB8C34]";
+      case "배송시작":
+        return "text-[#8BC53F]";
 			case "배송완료":
 				return "text-[#F73535]";
 			case "취소완료":
@@ -62,6 +75,20 @@ const OrdersPage = () => {
 		router.push(`/orders/${orderId}`);
 	};
 
+  const handleCancelOrder = (orderId: number) => {
+    router.push(`/orders/${orderId}/cancel`);
+  };
+
+  const handleRefundExchange = (orderId: number) => {
+    // 환불, 교환 신청 로직 구현
+    console.log("환불, 교환 신청", orderId);
+    // TODO: 환불, 교환 신청 페이지로 이동
+  };
+
+  const handleWriteReview = (orderId: number) => {
+    router.push("/account/reviews");
+  };
+
 	// API 데이터를 개별 주문으로 변환 (그룹화 없이)
 	const transformedOrders = useMemo((): Order[] => {
 		if (!ordersData?.results) {
@@ -73,22 +100,24 @@ const OrdersPage = () => {
 
 			// 상태 변환
 			let displayStatus: OrderStatus;
-			if (status === "CONFIRMED") {
+      if (status === "PENDING") {
+        displayStatus = "상품접수";
+      } else if (status === "CONFIRMED") {
 				displayStatus = "상품준비중";
 			} else if (status === "SHIPPED") {
-				displayStatus = "배송중";
+        displayStatus = "배송시작";
 			} else if (status === "DELIVERED") {
 				displayStatus = "배송완료";
 			} else if (status === "CANCELLED") {
 				displayStatus = "취소완료";
 			} else {
-				displayStatus = "상품준비중"; // PENDING
+        displayStatus = "상품접수"; // 기본값
 			}
 
 			// 날짜 포맷팅 (YYYY-MM-DD -> YYYY.MM.DD)
 			const orderedDate = new Date(item.ordered_at);
 			const formattedDate = `${orderedDate.getFullYear()}.${String(
-				orderedDate.getMonth() + 1,
+        orderedDate.getMonth() + 1
 			).padStart(2, "0")}.${String(orderedDate.getDate()).padStart(2, "0")}`;
 
 			// 이미지 URL 처리
@@ -104,6 +133,7 @@ const OrdersPage = () => {
 				id: item.id,
 				date: formattedDate,
 				status: displayStatus,
+        originalStatus: status,
 				items: [
 					{
 						id: item.id,
@@ -115,13 +145,13 @@ const OrdersPage = () => {
 						farmName: item.farm_name,
 					},
 				],
-				totalAmount: item.payment_info.amount,
-				merchantUid: item.payment_info.merchant_uid,
+        totalAmount: item.paid_amount,
+        orderNumber: item.order_number,
 				paymentInfo: {
-					total_amount: item.payment_info.total_amount,
-					point_used: item.payment_info.point_used,
-					coupon_discount_amount: item.payment_info.coupon_discount_amount,
-					amount: item.payment_info.amount,
+          total_price: item.total_price,
+          point_used: item.point_used,
+          coupon_discount_amount: item.coupon_discount_amount,
+          paid_amount: item.paid_amount,
 				},
 			};
 		});
@@ -130,13 +160,16 @@ const OrdersPage = () => {
 	// 상태별로 필터링
 	const ongoingOrders = useMemo(() => {
 		return transformedOrders.filter(
-			(order) => order.status === "상품준비중" || order.status === "배송중",
+      (order) =>
+        order.status === "상품접수" ||
+        order.status === "상품준비중" ||
+        order.status === "배송시작"
 		);
 	}, [transformedOrders]);
 
 	const historyOrders = useMemo(() => {
 		return transformedOrders.filter(
-			(order) => order.status === "배송완료" || order.status === "취소완료",
+      (order) => order.status === "배송완료" || order.status === "취소완료"
 		);
 	}, [transformedOrders]);
 
@@ -200,7 +233,7 @@ const OrdersPage = () => {
 											<div className="px-3.5 py-3 flex items-center justify-between border-b border-[#E5E5E5]">
 												<span
 													className={`text-sm font-semibold ${getStatusColor(
-														order.status,
+                            order.status
 													)}`}
 												>
 													{order.status}
@@ -225,15 +258,9 @@ const OrdersPage = () => {
 
 											{/* 총 주문금액 (하단) */}
 											<div className="px-3.5 py-3 border-t border-[#E5E5E5] space-y-2">
-												<div className="flex justify-between items-center text-sm text-[#262626]">
-													<span>상품 금액</span>
-													<span>
-														{order.paymentInfo.total_amount.toLocaleString()}원
-													</span>
-												</div>
 												{order.paymentInfo.point_used > 0 && (
 													<div className="flex justify-between items-center text-sm text-[#262626]">
-														<span>포인트 사용</span>
+                            <span>포인트</span>
 														<span className="text-[#8BC53F]">
 															-{order.paymentInfo.point_used.toLocaleString()}원
 														</span>
@@ -241,7 +268,7 @@ const OrdersPage = () => {
 												)}
 												{order.paymentInfo.coupon_discount_amount > 0 && (
 													<div className="flex justify-between items-center text-sm text-[#262626]">
-														<span>쿠폰 할인</span>
+                            <span>쿠폰</span>
 														<span className="text-[#8BC53F]">
 															-
 															{order.paymentInfo.coupon_discount_amount.toLocaleString()}
@@ -249,16 +276,59 @@ const OrdersPage = () => {
 														</span>
 													</div>
 												)}
-												<div className="flex justify-between items-center pt-2 border-t border-[#E5E5E5]">
+                        <div
+                          className={`flex justify-between items-center ${
+                            order.paymentInfo.point_used === 0 &&
+                            order.paymentInfo.coupon_discount_amount === 0
+                              ? ""
+                              : "pt-2 border-t border-[#E5E5E5]"
+                          }`}
+                        >
 													<span className="text-sm font-medium text-[#262626]">
 														총 주문금액
 													</span>
 													<span className="font-semibold text-[#262626]">
-														{order.paymentInfo.amount.toLocaleString()}원
+                            {order.paymentInfo.paid_amount.toLocaleString()}원
 													</span>
 												</div>
 											</div>
 										</div>
+
+                    {/* 주문 취소 버튼 (PENDING 상태일 때만 표시) */}
+                    {order.originalStatus === "PENDING" && (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => handleCancelOrder(order.id)}
+                          className="w-full py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                          aria-label="주문취소"
+                        >
+                          주문취소
+                        </button>
+                      </div>
+                    )}
+
+                    {/* 환불/교환 신청 및 후기 작성 버튼 (배송완료 상태일 때만 표시) */}
+                    {order.originalStatus === "DELIVERED" && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRefundExchange(order.id)}
+                          className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                          aria-label="환불 / 교환 신청"
+                        >
+                          환불 / 교환 신청
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleWriteReview(order.id)}
+                          className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                          aria-label="후기작성"
+                        >
+                          후기작성
+                        </button>
+                      </div>
+                    )}
 									</div>
 									{/* 주문 박스 사이 디바이더 (전체 너비) */}
 									{index < orders.length - 1 && (

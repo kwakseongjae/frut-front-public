@@ -44,8 +44,12 @@ const EditProductPage = () => {
   const [productName, setProductName] = useState("");
   const [mainImage, setMainImage] = useState<string | null>(null);
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
+  const [mainImageGcsPath, setMainImageGcsPath] = useState<string | null>(null);
   const [additionalImages, setAdditionalImages] = useState<string[]>([]);
   const [additionalImageFiles, setAdditionalImageFiles] = useState<File[]>([]);
+  const [additionalImageGcsPaths, setAdditionalImageGcsPaths] = useState<
+    string[]
+  >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [options, setOptions] = useState<ProductOption[]>([
     {
@@ -145,12 +149,15 @@ const EditProductPage = () => {
         const mainImg = productDetail.images.find((img) => img.is_main);
         if (mainImg) {
           setMainImage(mainImg.image_url);
+          setMainImageGcsPath(mainImg.gcs_path);
         }
         const additionalImgs = productDetail.images
           .filter((img) => !img.is_main)
-          .sort((a, b) => a.sort_order - b.sort_order)
-          .map((img) => img.image_url);
-        setAdditionalImages(additionalImgs);
+          .sort((a, b) => a.sort_order - b.sort_order);
+        setAdditionalImages(additionalImgs.map((img) => img.image_url));
+        setAdditionalImageGcsPaths(additionalImgs.map((img) => img.gcs_path));
+        // 기존 이미지에 대한 파일 배열은 빈 배열로 초기화 (기존 이미지는 파일이 없음)
+        setAdditionalImageFiles(new Array(additionalImgs.length).fill(null));
       }
 
       // 옵션 설정
@@ -291,6 +298,14 @@ const EditProductPage = () => {
                 const updated = [...prev, ...newImages];
                 return updated.slice(0, 9);
               });
+              // 새로 추가한 이미지는 gcs_path가 없으므로 빈 문자열 추가
+              setAdditionalImageGcsPaths((prev) => {
+                const updated = [
+                  ...prev,
+                  ...new Array(fileArray.length).fill(""),
+                ];
+                return updated.slice(0, 9);
+              });
             }
           }
         };
@@ -302,11 +317,13 @@ const EditProductPage = () => {
   const handleRemoveMainImage = () => {
     setMainImage(null);
     setMainImageFile(null);
+    setMainImageGcsPath(null);
   };
 
   const handleRemoveAdditionalImage = (index: number) => {
     setAdditionalImages((prev) => prev.filter((_, i) => i !== index));
     setAdditionalImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setAdditionalImageGcsPaths((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleOptionChange = (
@@ -406,47 +423,39 @@ const EditProductPage = () => {
 
     try {
       // 1. 기존 이미지 경로와 새로 업로드할 이미지 구분
-      const existingImagePaths: string[] = [];
+      const imagePaths: string[] = [];
 
       // 메인 이미지 처리
       if (mainImageFile) {
         // 새로 선택한 파일이면 업로드
         const mainImagePath = await uploadImageToGCS(mainImageFile);
-        existingImagePaths.push(mainImagePath);
-      } else if (mainImage && !mainImage.startsWith("data:")) {
-        // 기존 이미지 URL이면 그대로 사용 (GCS 경로 추출 필요)
-        // URL에서 경로만 추출 (예: https://storage.googleapis.com/bucket/path -> path)
-        const urlParts = mainImage.split("/");
-        const pathIndex = urlParts.findIndex((part) => part === "uploads");
-        if (pathIndex !== -1) {
-          existingImagePaths.push(urlParts.slice(pathIndex).join("/"));
-        } else {
-          existingImagePaths.push(mainImage);
-        }
+        imagePaths.push(mainImagePath);
+      } else if (mainImage && mainImageGcsPath) {
+        // 기존 이미지의 경우 gcs_path 사용
+        imagePaths.push(mainImageGcsPath);
       }
 
       // 추가 이미지 처리
+      // additionalImages 배열의 순서대로 처리 (삭제된 이미지는 이미 배열에서 제외됨)
+      // 각 인덱스에 대해 파일이 있으면 새 파일, 없고 gcs_path가 있으면 기존 이미지
+      // 배열 길이가 일치하지 않을 수 있으므로 additionalImages 기준으로 순회
       for (let i = 0; i < additionalImages.length; i++) {
-        const image = additionalImages[i];
-        const file = additionalImageFiles[i];
+        const file = additionalImageFiles[i] || null;
+        const gcsPath = additionalImageGcsPaths[i] || null;
+
+        // 새로 추가한 파일이 있는 경우
         if (file) {
           // 새로 선택한 파일이면 업로드
           const imagePath = await uploadImageToGCS(file);
-          existingImagePaths.push(imagePath);
-        } else if (image && !image.startsWith("data:")) {
-          // 기존 이미지 URL이면 그대로 사용
-          const urlParts = image.split("/");
-          const pathIndex = urlParts.findIndex((part) => part === "uploads");
-          if (pathIndex !== -1) {
-            existingImagePaths.push(urlParts.slice(pathIndex).join("/"));
-          } else {
-            existingImagePaths.push(image);
-          }
+          imagePaths.push(imagePath);
         }
+        // 기존 이미지인 경우 (gcs_path가 있고 빈 문자열이 아닌 경우)
+        else if (gcsPath && gcsPath.trim() !== "") {
+          // 기존 이미지의 gcs_path 사용
+          imagePaths.push(gcsPath);
+        }
+        // 둘 다 없는 경우는 건너뛰기 (이론적으로 발생하지 않아야 함)
       }
-
-      // 2. 이미지 경로 배열 생성 (메인 이미지가 첫 번째)
-      const imagePaths = existingImagePaths;
 
       // 3. 옵션 데이터 변환
       const productOptions: CreateProductOption[] | undefined =

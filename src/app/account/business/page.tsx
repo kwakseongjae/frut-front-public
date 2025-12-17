@@ -152,6 +152,11 @@ const BusinessProfilePage = () => {
     router.push("/account/business/products");
   };
 
+  const handleOrderManagement = () => {
+    setIsSidebarOpen(false);
+    router.push("/account/business/orders");
+  };
+
   const handleTabClick = (tab: "news" | "products" | "reviews") => {
     setActiveTab(tab);
   };
@@ -665,7 +670,7 @@ const BusinessProfilePage = () => {
             <button
               type="button"
               className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
-              onClick={handleSidebarClose}
+              onClick={handleOrderManagement}
             >
               주문관리
             </button>

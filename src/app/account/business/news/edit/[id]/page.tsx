@@ -23,6 +23,10 @@ const EditNewsPage = () => {
   const [images, setImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
+  const [existingImagePaths, setExistingImagePaths] = useState<string[]>([]);
+  const [originalImageUrlToPathMap, setOriginalImageUrlToPathMap] = useState<
+    Map<string, string>
+  >(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: newsData } = useMyFarmNews();
@@ -41,6 +45,25 @@ const EditNewsPage = () => {
             : [];
         setExistingImageUrls(imageUrls);
         setImages(imageUrls);
+
+        // paths 배열에서 path 값 추출
+        const imagePaths =
+          newsItem.paths && newsItem.paths.length > 0
+            ? newsItem.paths.map((pathItem) => pathItem.path)
+            : [];
+        setExistingImagePaths(imagePaths);
+
+        // URL과 path를 매핑하는 Map 생성
+        const urlToPathMap = new Map<string, string>();
+        if (newsItem.images && newsItem.paths) {
+          newsItem.images.forEach((img, index) => {
+            const pathItem = newsItem.paths?.find((p) => p.id === img.id);
+            if (pathItem) {
+              urlToPathMap.set(img.image_url, pathItem.path);
+            }
+          });
+        }
+        setOriginalImageUrlToPathMap(urlToPathMap);
       }
     }
   }, [newsData, numericNewsId]);
@@ -77,15 +100,31 @@ const EditNewsPage = () => {
   };
 
   const handleRemoveImage = (index: number) => {
+    const imageToRemove = images[index];
     setImages((prev) => prev.filter((_, i) => i !== index));
+
     // 새로 추가한 파일인지 기존 이미지인지 확인
-    if (index < existingImageUrls.length) {
-      // 기존 이미지 삭제
-      setExistingImageUrls((prev) => prev.filter((_, i) => i !== index));
+    if (imageToRemove && !imageToRemove.startsWith("data:")) {
+      // 기존 이미지 삭제 - URL로 찾아서 삭제
+      setExistingImageUrls((prev) =>
+        prev.filter((url) => url !== imageToRemove)
+      );
+      // 해당 URL에 매칭되는 path도 삭제
+      const urlIndex = existingImageUrls.findIndex(
+        (url) => url === imageToRemove
+      );
+      if (urlIndex !== -1) {
+        setExistingImagePaths((prev) => prev.filter((_, i) => i !== urlIndex));
+      }
     } else {
-      // 새로 추가한 파일 삭제
-      const fileIndex = index - existingImageUrls.length;
-      setImageFiles((prev) => prev.filter((_, i) => i !== fileIndex));
+      // 새로 추가한 파일 삭제 - images 배열에서 data URL의 인덱스를 기준으로 계산
+      const existingCount = images.filter(
+        (img) => !img.startsWith("data:")
+      ).length;
+      const dataUrlIndex = index - existingCount;
+      if (dataUrlIndex >= 0) {
+        setImageFiles((prev) => prev.filter((_, i) => i !== dataUrlIndex));
+      }
     }
   };
 
@@ -121,25 +160,39 @@ const EditNewsPage = () => {
     setIsSubmitting(true);
 
     try {
-      // 1. 새로 추가한 이미지들을 GCS에 업로드
-      const newImageUrls = await Promise.all(
+      // 1. 현재 images 배열에서 기존 이미지와 새로 추가한 이미지를 구분
+      const currentExistingImagePaths: string[] = [];
+
+      images.forEach((imageUrl) => {
+        // 기존 이미지인지 확인 (data URL이 아닌 경우)
+        if (!imageUrl.startsWith("data:")) {
+          // originalImageUrlToPathMap에서 먼저 찾기
+          let path = originalImageUrlToPathMap.get(imageUrl);
+
+          // Map에서 찾지 못한 경우, existingImageUrls에서 인덱스를 찾아서 path 가져오기
+          if (!path) {
+            const urlIndex = existingImageUrls.findIndex(
+              (url) => url === imageUrl
+            );
+            if (urlIndex !== -1 && existingImagePaths[urlIndex]) {
+              path = existingImagePaths[urlIndex];
+            }
+          }
+
+          if (path) {
+            currentExistingImagePaths.push(path);
+          }
+        }
+        // data URL인 경우는 새로 추가한 이미지이므로 나중에 업로드
+      });
+
+      // 2. 새로 추가한 이미지들을 GCS에 업로드
+      const newImagePaths = await Promise.all(
         imageFiles.map((file) => uploadImageToGCS(file))
       );
 
-      // 2. 기존 이미지 URL과 새 이미지 URL을 합침
-      // 기존 이미지 URL에서 GCS 경로 추출 (전체 URL이면 경로만 추출)
-      const existingPaths = existingImageUrls.map((url) => {
-        // URL에서 경로만 추출 (예: https://storage.googleapis.com/bucket/path -> path)
-        const urlParts = url.split("/");
-        const pathIndex = urlParts.findIndex((part) => part === "farm_news");
-        if (pathIndex !== -1) {
-          return urlParts.slice(pathIndex).join("/");
-        }
-        return url; // 이미 경로 형식이면 그대로 사용
-      });
-
-      // 3. 최종 이미지 URL 배열 (기존 + 새로 추가한 것)
-      const allImageUrls = [...existingPaths, ...newImageUrls];
+      // 3. 기존 이미지의 path와 새로 업로드한 이미지의 path를 합침
+      const allImagePaths = [...currentExistingImagePaths, ...newImagePaths];
 
       // 4. 소식 수정 API 호출
       await updateNewsMutation.mutateAsync({
@@ -147,7 +200,7 @@ const EditNewsPage = () => {
         request: {
           title: title.trim(),
           content: content.trim(),
-          images: allImageUrls,
+          images: allImagePaths,
         },
       });
 
@@ -295,11 +348,3 @@ const EditNewsPage = () => {
 };
 
 export default EditNewsPage;
-
-
-
-
-
-
-
-

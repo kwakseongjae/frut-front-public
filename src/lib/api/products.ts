@@ -103,6 +103,7 @@ export interface ProductReviewImagesResponse
 export interface ProductImage {
   id: number;
   image_url: string;
+  gcs_path: string;
   sort_order: number;
   is_main: boolean;
 }
