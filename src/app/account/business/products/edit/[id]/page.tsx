@@ -2,7 +2,14 @@
 
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import CameraIcon from "@/assets/icon/ic_camera_black_18.svg";
 import CheckboxGreenIcon from "@/assets/icon/ic_checkbox_green_18.svg";
 import CheckboxGreyIcon from "@/assets/icon/ic_checkbox_grey_18.svg";
@@ -92,6 +99,91 @@ const EditProductPage = () => {
     const mainCategory = categoriesData.find((c) => c.id === mainCategoryId);
     return mainCategory?.subcategories || [];
   }, [mainCategoryId, categoriesData]);
+
+  // detail_content의 GCS 경로를 이미지 URL로 변환하는 함수
+  const processDetailContentForEditor = useCallback(
+    async (
+      content: string,
+      images: Array<{ gcs_path: string; image_url: string }>
+    ): Promise<string> => {
+      if (!content) return "";
+
+      // HTML에서 img 태그의 src 속성 추출
+      const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+      const matches = Array.from(content.matchAll(imgRegex));
+
+      if (matches.length === 0) return content;
+
+      let processedContent = content;
+      const replacements: Array<{ original: string; replacement: string }> = [];
+
+      // 각 img 태그 처리
+      for (const match of matches) {
+        const originalSrc = match[1];
+        const fullMatch = match[0];
+
+        // content/ 경로인 경우 (상품 설명 이미지)
+        if (originalSrc?.startsWith("content/")) {
+          try {
+            // 읽기용 Signed URL 생성
+            const readSignedUrlData =
+              await uploadApi.generateContentReadSignedUrl({
+                gcs_path: originalSrc,
+              });
+
+            // img 태그의 src를 읽기용 Signed URL로 교체
+            const newImgTag = fullMatch.replace(
+              /src=["'][^"']+["']/,
+              `src="${readSignedUrlData.signed_url}"`
+            );
+            replacements.push({ original: fullMatch, replacement: newImgTag });
+          } catch (error) {
+            console.error(
+              `상품 설명 이미지 Signed URL 생성 실패 (${originalSrc}):`,
+              error
+            );
+            // 실패 시 원본 유지
+          }
+        }
+        // GCS 경로인 경우 (일반 상품 이미지) - images 배열에서 매칭
+        else if (
+          originalSrc &&
+          !originalSrc.startsWith("http") &&
+          !originalSrc.startsWith("data:") &&
+          !originalSrc.startsWith("blob:") &&
+          images &&
+          images.length > 0
+        ) {
+          // images 배열에서 해당 gcs_path를 가진 이미지 찾기
+          // 정확한 매칭 또는 경로 끝부분 매칭
+          const matchedImage = images.find(
+            (img) =>
+              img.gcs_path === originalSrc ||
+              img.gcs_path.endsWith(originalSrc) ||
+              originalSrc.endsWith(img.gcs_path)
+          );
+
+          if (matchedImage) {
+            // img 태그의 src를 image_url로 교체
+            const newImgTag = fullMatch.replace(
+              /src=["'][^"']+["']/,
+              `src="${matchedImage.image_url}"`
+            );
+            replacements.push({ original: fullMatch, replacement: newImgTag });
+          }
+        }
+      }
+
+      // 역순으로 교체하여 인덱스 문제 방지
+      for (let i = replacements.length - 1; i >= 0; i--) {
+        const { original, replacement } = replacements[i];
+        processedContent = processedContent.replace(original, replacement);
+      }
+
+      return processedContent;
+    },
+    []
+  );
 
   // 상품 데이터 로드 및 폼 초기화
   useEffect(() => {
@@ -194,10 +286,18 @@ const EditProductPage = () => {
         }
       }
 
-      // 상품 설명 설정
-      setEditorContent(productDetail.detail_content || "");
+      // 상품 설명 설정 - detail_content의 GCS 경로를 이미지 URL로 변환
+      const loadDetailContent = async () => {
+        const detailContent = productDetail.detail_content || "";
+        const processedDetailContent = await processDetailContentForEditor(
+          detailContent,
+          productDetail.images || []
+        );
+        setEditorContent(processedDetailContent);
+      };
+      loadDetailContent();
     }
-  }, [productDetail, categoriesData]);
+  }, [productDetail, categoriesData, processDetailContentForEditor]);
 
   const handleMainCategorySelect = (
     categoryId: number,
@@ -393,6 +493,110 @@ const EditProductPage = () => {
     return signedUrlData.gcs_path;
   };
 
+  // base64 또는 blob URL을 File 객체로 변환
+  const imageUrlToFile = async (
+    imageUrl: string,
+    fileName: string
+  ): Promise<File> => {
+    let blob: Blob;
+
+    if (imageUrl.startsWith("data:")) {
+      // base64 데이터 URL 처리
+      const response = await fetch(imageUrl);
+      blob = await response.blob();
+    } else if (imageUrl.startsWith("blob:")) {
+      // blob URL 처리
+      const response = await fetch(imageUrl);
+      blob = await response.blob();
+    } else {
+      throw new Error("지원하지 않는 이미지 형식입니다.");
+    }
+
+    return new File([blob], fileName, { type: blob.type });
+  };
+
+  // detail_content에서 base64 이미지를 찾아서 content/ 경로에 업로드하고 읽기용 Signed URL로 교체
+  const processDetailContentImages = async (
+    content: string
+  ): Promise<string> => {
+    if (!content) return content;
+
+    // HTML에서 img 태그의 src 속성 추출 (base64 또는 blob URL)
+    const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    const matches = Array.from(content.matchAll(imgRegex));
+    const base64Images = matches.filter(
+      (match) =>
+        match[1].startsWith("data:image/") || match[1].startsWith("blob:")
+    );
+
+    if (base64Images.length === 0) return content;
+
+    let processedContent = content;
+    const timestamp = Date.now();
+    const replacements: Array<{ original: string; replacement: string }> = [];
+
+    // 각 base64 이미지를 content/ 경로에 업로드
+    for (let i = 0; i < base64Images.length; i++) {
+      const match = base64Images[i];
+      const originalSrc = match[1];
+      const fullMatch = match[0];
+
+      try {
+        // base64 또는 blob URL을 File로 변환
+        let fileExtension = "png";
+        let contentType = "image/png";
+
+        if (originalSrc.startsWith("data:image/")) {
+          const mimeMatch = originalSrc.match(/data:image\/([^;]+)/);
+          fileExtension = mimeMatch ? mimeMatch[1] : "png";
+          contentType = `image/${fileExtension}`;
+        } else if (originalSrc.startsWith("blob:")) {
+          // blob URL의 경우 기본값 사용
+          fileExtension = "png";
+          contentType = "image/png";
+        }
+
+        const fileName = `detail_image_${timestamp}_${i}.${fileExtension}`;
+
+        const file = await imageUrlToFile(originalSrc, fileName);
+
+        // 1. content/ 경로용 업로드 Signed URL 생성
+        const uploadSignedUrlData =
+          await uploadApi.generateContentUploadSignedUrl({
+            file_name: fileName,
+            content_type: contentType,
+          });
+
+        // 2. Signed URL로 파일 업로드
+        await uploadApi.uploadToGCS(file, uploadSignedUrlData.signed_url);
+
+        // 3. 읽기용 Signed URL 생성
+        const readSignedUrlData = await uploadApi.generateContentReadSignedUrl({
+          gcs_path: uploadSignedUrlData.gcs_path,
+        });
+
+        // 4. img 태그의 src를 읽기용 Signed URL로 교체
+        const newImgTag = fullMatch.replace(
+          /src=["'][^"']+["']/,
+          `src="${readSignedUrlData.signed_url}"`
+        );
+
+        replacements.push({ original: fullMatch, replacement: newImgTag });
+      } catch (error) {
+        console.error(`이미지 업로드 실패 (${i}번째):`, error);
+        // 업로드 실패 시 원본 유지
+      }
+    }
+
+    // 역순으로 교체하여 인덱스 문제 방지
+    for (let i = replacements.length - 1; i >= 0; i--) {
+      const { original, replacement } = replacements[i];
+      processedContent = processedContent.replace(original, replacement);
+    }
+
+    return processedContent;
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
@@ -512,14 +716,19 @@ const EditProductPage = () => {
           })()
         : undefined;
 
-      // 5. 상품 수정 API 호출
+      // 5. detail_content의 이미지를 GCS에 업로드하고 경로로 교체
+      const processedDetailContent = editorContent
+        ? await processDetailContentImages(editorContent)
+        : undefined;
+
+      // 6. 상품 수정 API 호출
       await updateProductMutation.mutateAsync({
         productId: numericProductId,
         request: {
           category_id: subCategoryId,
           product_name: productName,
           product_description: productInfo.productName || undefined,
-          detail_content: editorContent || undefined,
+          detail_content: processedDetailContent,
           producer_name: productInfo.manufacturer || undefined,
           producer_location: undefined,
           production_date: productInfo.manufactureDate || undefined,

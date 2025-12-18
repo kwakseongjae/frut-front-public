@@ -34,6 +34,7 @@ export interface Product {
   days_remaining: number | null;
   main_image: string | null;
   is_wished: boolean;
+  rank?: number;
   created_at: string;
   updated_at: string;
 }

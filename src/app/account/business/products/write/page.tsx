@@ -272,6 +272,110 @@ const WriteProductPage = () => {
     return signedUrlData.gcs_path;
   };
 
+  // base64 또는 blob URL을 File 객체로 변환
+  const imageUrlToFile = async (
+    imageUrl: string,
+    fileName: string
+  ): Promise<File> => {
+    let blob: Blob;
+
+    if (imageUrl.startsWith("data:")) {
+      // base64 데이터 URL 처리
+      const response = await fetch(imageUrl);
+      blob = await response.blob();
+    } else if (imageUrl.startsWith("blob:")) {
+      // blob URL 처리
+      const response = await fetch(imageUrl);
+      blob = await response.blob();
+    } else {
+      throw new Error("지원하지 않는 이미지 형식입니다.");
+    }
+
+    return new File([blob], fileName, { type: blob.type });
+  };
+
+  // detail_content에서 base64 이미지를 찾아서 content/ 경로에 업로드하고 읽기용 Signed URL로 교체
+  const processDetailContentImages = async (
+    content: string
+  ): Promise<string> => {
+    if (!content) return content;
+
+    // HTML에서 img 태그의 src 속성 추출 (base64 또는 blob URL)
+    const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    const matches = Array.from(content.matchAll(imgRegex));
+    const base64Images = matches.filter(
+      (match) =>
+        match[1].startsWith("data:image/") || match[1].startsWith("blob:")
+    );
+
+    if (base64Images.length === 0) return content;
+
+    let processedContent = content;
+    const timestamp = Date.now();
+    const replacements: Array<{ original: string; replacement: string }> = [];
+
+    // 각 base64 이미지를 content/ 경로에 업로드
+    for (let i = 0; i < base64Images.length; i++) {
+      const match = base64Images[i];
+      const originalSrc = match[1];
+      const fullMatch = match[0];
+
+      try {
+        // base64 또는 blob URL을 File로 변환
+        let fileExtension = "png";
+        let contentType = "image/png";
+
+        if (originalSrc.startsWith("data:image/")) {
+          const mimeMatch = originalSrc.match(/data:image\/([^;]+)/);
+          fileExtension = mimeMatch ? mimeMatch[1] : "png";
+          contentType = `image/${fileExtension}`;
+        } else if (originalSrc.startsWith("blob:")) {
+          // blob URL의 경우 기본값 사용
+          fileExtension = "png";
+          contentType = "image/png";
+        }
+
+        const fileName = `detail_image_${timestamp}_${i}.${fileExtension}`;
+
+        const file = await imageUrlToFile(originalSrc, fileName);
+
+        // 1. content/ 경로용 업로드 Signed URL 생성
+        const uploadSignedUrlData =
+          await uploadApi.generateContentUploadSignedUrl({
+            file_name: fileName,
+            content_type: contentType,
+          });
+
+        // 2. Signed URL로 파일 업로드
+        await uploadApi.uploadToGCS(file, uploadSignedUrlData.signed_url);
+
+        // 3. 읽기용 Signed URL 생성
+        const readSignedUrlData = await uploadApi.generateContentReadSignedUrl({
+          gcs_path: uploadSignedUrlData.gcs_path,
+        });
+
+        // 4. img 태그의 src를 읽기용 Signed URL로 교체
+        const newImgTag = fullMatch.replace(
+          /src=["'][^"']+["']/,
+          `src="${readSignedUrlData.signed_url}"`
+        );
+
+        replacements.push({ original: fullMatch, replacement: newImgTag });
+      } catch (error) {
+        console.error(`이미지 업로드 실패 (${i}번째):`, error);
+        // 업로드 실패 시 원본 유지
+      }
+    }
+
+    // 역순으로 교체하여 인덱스 문제 방지
+    for (let i = replacements.length - 1; i >= 0; i--) {
+      const { original, replacement } = replacements[i];
+      processedContent = processedContent.replace(original, replacement);
+    }
+
+    return processedContent;
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
@@ -367,12 +471,17 @@ const WriteProductPage = () => {
           })()
         : undefined;
 
-      // 6. 상품 등록 API 호출
+      // 6. detail_content의 이미지를 GCS에 업로드하고 경로로 교체
+      const processedDetailContent = editorContent
+        ? await processDetailContentImages(editorContent)
+        : undefined;
+
+      // 7. 상품 등록 API 호출
       await createProductMutation.mutateAsync({
         category_id: subCategoryId,
         product_name: productName,
         product_description: productInfo.productName || undefined,
-        detail_content: editorContent || undefined,
+        detail_content: processedDetailContent,
         producer_name: productInfo.manufacturer || undefined,
         producer_location: undefined, // productInfo에 없음
         production_date: productInfo.manufactureDate || undefined,

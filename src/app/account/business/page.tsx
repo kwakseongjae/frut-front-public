@@ -246,7 +246,7 @@ const BusinessProfilePage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       {/* 헤더 영역 */}
-      <div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5">
+      <div className="sticky top-0 z-20 bg-white flex items-center justify-between py-3 px-5">
         <button
           type="button"
           onClick={() => window.history.back()}
@@ -289,7 +289,7 @@ const BusinessProfilePage = () => {
                 e.stopPropagation();
                 setIsProfileViewerOpen(true);
               }}
-              className="w-24 h-24 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden cursor-pointer z-10"
+              className="w-24 h-24 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden cursor-pointer"
               aria-label="프로필 이미지 확대 보기"
             >
               {profileData.farm_image_url && (
@@ -347,7 +347,7 @@ const BusinessProfilePage = () => {
       </div>
 
       {/* 탭 내비게이션 */}
-      <div className="sticky top-[52px] z-10 bg-white border-b-2 border-[#E5E5E5]">
+      <div className="sticky top-[52px] z-20 bg-white border-b-2 border-[#E5E5E5]">
         <div className="flex">
           <button
             type="button"
