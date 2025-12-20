@@ -9,17 +9,22 @@ import TrendUpIcon from "@/assets/icon/ic_trend_up_black_18.svg";
 import WalletIcon from "@/assets/icon/ic_wallet_green_18.svg";
 import { useMonthlySettlement } from "@/lib/api/hooks/use-settlements";
 
+type PeriodType = "FIRST_HALF" | "SECOND_HALF";
+
 const SettlementPage = () => {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<PeriodType>("FIRST_HALF");
 
   // 월별 정산 조회
   const { data: settlementData, isLoading: isSettlementLoading } =
     useMonthlySettlement({
       year: selectedYear,
       month: selectedMonth,
+      period_type: selectedPeriod,
     });
 
   // API 데이터 또는 기본값
@@ -99,6 +104,36 @@ const SettlementPage = () => {
               </div>
             </div>
           </div>
+          {/* 정산 차수 선택 */}
+          <div className="mb-4">
+            <p className="text-sm text-[#8C8C8C] mb-2">정산 차수</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPeriod("FIRST_HALF")}
+                className={`px-4 py-2 text-sm rounded border transition-colors ${
+                  selectedPeriod === "FIRST_HALF"
+                    ? "border-[#262626] bg-white text-[#262626] font-medium"
+                    : "border-[#D9D9D9] bg-white text-[#8C8C8C]"
+                }`}
+                aria-label="1차 정산"
+              >
+                1차(15일)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPeriod("SECOND_HALF")}
+                className={`px-4 py-2 text-sm rounded border transition-colors ${
+                  selectedPeriod === "SECOND_HALF"
+                    ? "border-[#262626] bg-white text-[#262626] font-medium"
+                    : "border-[#D9D9D9] bg-white text-[#8C8C8C]"
+                }`}
+                aria-label="2차 정산"
+              >
+                2차(말일)
+              </button>
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-[#8C8C8C] mb-1">정산일</p>
@@ -145,7 +180,6 @@ const SettlementPage = () => {
               </p>
               <p className="text-sm text-[#8C8C8C]">
                 {selectedYear}년 {selectedMonth}월 총 판매금액
-                {orderCount > 0 && ` (주문 ${orderCount}건)`}
               </p>
             </>
           )}

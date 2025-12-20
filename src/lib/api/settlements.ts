@@ -3,6 +3,7 @@ import { apiClient } from "./client";
 export interface MonthlySettlementParams {
   month: number; // 1-12
   year: number; // 예: 2025
+  period_type?: "FIRST_HALF" | "SECOND_HALF"; // 정산 차수
 }
 
 export interface MonthlySettlement {
@@ -25,6 +26,9 @@ export const settlementsApi = {
     const searchParams = new URLSearchParams();
     searchParams.append("month", params.month.toString());
     searchParams.append("year", params.year.toString());
+    if (params.period_type) {
+      searchParams.append("period_type", params.period_type);
+    }
 
     const queryString = searchParams.toString();
     const endpoint = `/api/settlements/seller/monthly${
@@ -35,20 +39,3 @@ export const settlementsApi = {
     return data;
   },
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

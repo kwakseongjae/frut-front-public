@@ -5,7 +5,13 @@ import { type MonthlySettlementParams, settlementsApi } from "../settlements";
 
 export const useMonthlySettlement = (params: MonthlySettlementParams) => {
   return useQuery({
-    queryKey: ["settlements", "monthly", params.year, params.month],
+    queryKey: [
+      "settlements",
+      "monthly",
+      params.year,
+      params.month,
+      params.period_type,
+    ],
     queryFn: () => settlementsApi.getMonthlySettlement(params),
     enabled:
       !!params.year &&
@@ -14,20 +20,3 @@ export const useMonthlySettlement = (params: MonthlySettlementParams) => {
       params.month <= 12,
   });
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

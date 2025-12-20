@@ -244,11 +244,13 @@ const WriteReviewPage = () => {
 
             {/* 상품 정보 */}
             <div className="flex flex-col gap-1 flex-1">
-              <span className="text-sm text-[#262626]">{product.farmName}</span>
+              <span className="text-sm font-medium text-[#262626]">
+                {product.farmName}
+              </span>
               <span className="text-sm text-[#262626]">
                 {product.productName}
               </span>
-              <span className="text-sm text-[#262626]">{product.option}</span>
+              <span className="text-xs text-[#8C8C8C]">{product.option}</span>
             </div>
           </div>
         </div>

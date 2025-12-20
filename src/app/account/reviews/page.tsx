@@ -244,13 +244,13 @@ const ReviewsPageContent = () => {
 
                         {/* 상품 정보 */}
                         <div className="flex flex-col flex-1 gap-1">
-                          <span className="text-sm text-[#262626]">
+                          <span className="text-sm font-medium text-[#262626]">
                             {product.farmName}
                           </span>
                           <span className="text-sm text-[#262626]">
                             {product.productName}
                           </span>
-                          <span className="text-sm text-[#262626]">
+                          <span className="text-xs text-[#8C8C8C]">
                             {product.option}
                           </span>
                           <span className="text-sm text-[#8C8C8C]">
@@ -357,11 +357,11 @@ const ReviewsPageContent = () => {
                         {/* 구매 상품 정보 */}
                         <div className="mb-2 flex flex-col gap-1">
                           {review.farm_name && (
-                            <span className="text-xs text-[#8C8C8C]">
+                            <span className="text-sm font-medium text-[#262626]">
                               {review.farm_name}
                             </span>
                           )}
-                          <span className="text-xs text-[#8C8C8C]">
+                          <span className="text-sm text-[#262626]">
                             {review.product_name}
                           </span>
                           {review.option_name && (
