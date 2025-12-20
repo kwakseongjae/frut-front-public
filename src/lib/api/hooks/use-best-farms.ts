@@ -98,6 +98,30 @@ export const useFollowedFarms = () => {
   });
 };
 
+export const useInfiniteFollowedFarms = () => {
+  return useInfiniteQuery({
+    queryKey: [...sellersQueryKeys.followedFarms(), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await sellersApi.getFollowedFarms(pageParam);
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
+  });
+};
+
 export const useFarmProfile = (params: GetFarmProfileParams) => {
   return useQuery({
     queryKey: sellersQueryKeys.farmProfile(params.farm_id),
@@ -112,6 +136,30 @@ export const useFarmNews = (params: GetFarmNewsParams) => {
   });
 };
 
+export const useInfiniteFarmNews = (params: GetFarmNewsParams) => {
+  return useInfiniteQuery({
+    queryKey: [...sellersQueryKeys.farmNews(params.farm_id), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await sellersApi.getFarmNews({ ...params, page: pageParam });
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
+  });
+};
+
 export const useMySellerProfile = () => {
   return useQuery({
     queryKey: sellersQueryKeys.myProfile(),
@@ -123,6 +171,30 @@ export const useMyFarmNews = () => {
   return useQuery({
     queryKey: sellersQueryKeys.myFarmNews(),
     queryFn: () => sellersApi.getMyFarmNews(),
+  });
+};
+
+export const useInfiniteMyFarmNews = () => {
+  return useInfiniteQuery({
+    queryKey: [...sellersQueryKeys.myFarmNews(), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await sellersApi.getMyFarmNews(pageParam);
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
   });
 };
 

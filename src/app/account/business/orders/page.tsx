@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ChevronRightIcon from "@/assets/icon/ic_chevron_right_grey_17.svg";
-import { useSellerOrders } from "@/lib/api/hooks/use-order";
+import { useInfiniteSellerOrders } from "@/lib/api/hooks/use-order";
 
 type OrderStatusTab =
   | "all"
@@ -47,13 +47,28 @@ const BusinessOrdersPage = () => {
   const [activeTab, setActiveTab] = useState<OrderStatusTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: ordersData, isLoading } = useSellerOrders();
+  const {
+    data: ordersData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteSellerOrders();
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  // 모든 페이지의 데이터를 평탄화
+  const allOrdersData = useMemo(() => {
+    if (!ordersData?.pages) return [];
+    return ordersData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((order) => order !== undefined && order !== null);
+  }, [ordersData]);
 
   // API 데이터를 Order 형식으로 변환
   const orders: Order[] = useMemo(() => {
-    if (!ordersData?.results) return [];
+    if (!allOrdersData || allOrdersData.length === 0) return [];
 
-    return ordersData.results.map((item) => {
+    return allOrdersData.map((item) => {
       // 상태 매핑
       let status: "주문확인" | "배송준비" | "배송중" | "배송완료";
       let originalStatus:
@@ -109,7 +124,7 @@ const BusinessOrdersPage = () => {
         delivery_address: item.delivery_address,
       };
     });
-  }, [ordersData]);
+  }, [allOrdersData]);
 
   // 상태별 개수 계산
   const statusCounts = useMemo(() => {
@@ -190,6 +205,33 @@ const BusinessOrdersPage = () => {
 
     return filtered;
   }, [activeTab, searchQuery, orders]);
+
+  // Intersection Observer로 무한 스크롤 구현
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleOrderDetailClick = (orderId: number) => {
     router.push(`/account/business/orders/${orderId}/status`);
@@ -332,6 +374,7 @@ const BusinessOrdersPage = () => {
             <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
           </div>
         ) : filteredOrders.length > 0 ? (
+          <>
           <div className="flex flex-col">
             {filteredOrders.map((order) => {
               return (
@@ -423,6 +466,18 @@ const BusinessOrdersPage = () => {
               );
             })}
           </div>
+            {/* 무한 스크롤 감지용 요소 */}
+            {hasNextPage && (
+              <div
+                ref={observerTarget}
+                className="h-10 flex items-center justify-center"
+              >
+                {isFetchingNextPage && (
+                  <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex items-center justify-center py-20">
             <p className="text-sm text-[#8C8C8C]">주문 내역이 없습니다.</p>

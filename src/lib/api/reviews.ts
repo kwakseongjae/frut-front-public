@@ -97,10 +97,19 @@ export interface WrittenReviewsResponse {
 }
 
 export const reviewsApi = {
-  getReviewableItems: async (): Promise<ReviewableItemsResponse> => {
+  getReviewableItems: async (
+    page?: number
+  ): Promise<ReviewableItemsResponse> => {
     // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-    const url = `${API_BASE_URL}/api/reviews/reviewable`;
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/reviews/reviewable${
+      queryString ? `?${queryString}` : ""
+    }`;
 
     let accessToken: string | null = null;
     if (typeof window !== "undefined") {
@@ -128,10 +137,25 @@ export const reviewsApi = {
 
     // 응답이 { success, data } 형식인지 확인
     if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
       return jsonData.data as ReviewableItemsResponse;
+      }
     }
 
-    // 직접 데이터 형식인 경우
+    // 직접 페이지네이션 형식인 경우
     if (jsonData.count !== undefined && jsonData.results !== undefined) {
       return jsonData as ReviewableItemsResponse;
     }
@@ -155,10 +179,17 @@ export const reviewsApi = {
     return data;
   },
 
-  getWrittenReviews: async (): Promise<WrittenReviewsResponse> => {
+  getWrittenReviews: async (page?: number): Promise<WrittenReviewsResponse> => {
     // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-    const url = `${API_BASE_URL}/api/reviews`;
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/reviews${
+      queryString ? `?${queryString}` : ""
+    }`;
 
     let accessToken: string | null = null;
     if (typeof window !== "undefined") {
@@ -186,10 +217,25 @@ export const reviewsApi = {
 
     // 응답이 { success, data } 형식인지 확인
     if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
       return jsonData.data as WrittenReviewsResponse;
+      }
     }
 
-    // 직접 데이터 형식인 경우
+    // 직접 페이지네이션 형식인 경우
     if (jsonData.count !== undefined && jsonData.results !== undefined) {
       return jsonData as WrittenReviewsResponse;
     }

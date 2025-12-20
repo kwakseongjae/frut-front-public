@@ -2,14 +2,14 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import DotMenuIcon from "@/assets/icon/ic_dot_menu_grey_14.svg";
 import PlusWhiteIcon from "@/assets/icon/ic_plus_white_24.svg";
 import SearchIcon from "@/assets/icon/ic_search_grey_22.svg";
 import {
   useDeleteProduct,
-  useSellerManagementProducts,
+  useInfiniteSellerManagementProducts,
   useUpdateProductStatus,
 } from "@/lib/api/hooks/use-products";
 
@@ -39,14 +39,25 @@ const ProductManagementPage = () => {
     return params;
   }, [searchQuery, filterType]);
 
-  // API 데이터 조회
-  const { data: managementData, isLoading } =
-    useSellerManagementProducts(apiParams);
+  // API 데이터 조회 (무한 스크롤)
+  const {
+    data: managementData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteSellerManagementProducts(apiParams);
+  const observerTarget = useRef<HTMLDivElement>(null);
   const updateStatusMutation = useUpdateProductStatus();
   const deleteProductMutation = useDeleteProduct();
 
-  const statistics = managementData?.statistics;
-  const products = managementData?.products || [];
+  const statistics = managementData?.pages[0]?.statistics;
+  const allProducts = useMemo(() => {
+    if (!managementData?.pages) return [];
+    return managementData.pages
+      .flatMap((page) => page?.products?.results || [])
+      .filter((product) => product !== undefined && product !== null);
+  }, [managementData]);
 
   const handleBackClick = () => {
     router.back();
@@ -67,7 +78,7 @@ const ProductManagementPage = () => {
   };
 
   const handleStatusToggle = async (productId: number) => {
-    const product = products.find((p) => p.id === productId);
+    const product = allProducts.find((p) => p.id === productId);
     if (!product) return;
 
     // 상태 변경 로직
@@ -106,6 +117,33 @@ const ProductManagementPage = () => {
       alert("상품 삭제에 실패했습니다. 다시 시도해주세요.");
     }
   };
+
+  // Intersection Observer로 무한 스크롤 구현
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 통계 데이터
   const totalProducts = statistics?.total_count || 0;
@@ -220,13 +258,14 @@ const ProductManagementPage = () => {
           <div className="flex items-center justify-center py-20">
             <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
           </div>
-        ) : products.length === 0 ? (
+        ) : allProducts.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <p className="text-sm text-[#8C8C8C]">등록된 상품이 없습니다.</p>
           </div>
         ) : (
+          <>
           <div className="flex flex-col gap-4">
-            {products.map((product) => (
+              {allProducts.map((product) => (
               <div
                 key={product.id}
                 className="border border-[#E5E5E5] rounded-lg p-4 relative"
@@ -353,7 +392,8 @@ const ProductManagementPage = () => {
                       {product.category_name}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
-                      {product.display_cost_price !== product.display_price && (
+                        {product.display_cost_price !==
+                          product.display_price && (
                         <span className="text-sm text-[#8C8C8C] line-through">
                           {product.display_price.toLocaleString()}원
                         </span>
@@ -367,6 +407,18 @@ const ProductManagementPage = () => {
               </div>
             ))}
           </div>
+            {/* 무한 스크롤 감지용 요소 */}
+            {hasNextPage && (
+              <div
+                ref={observerTarget}
+                className="h-10 flex items-center justify-center"
+              >
+                {isFetchingNextPage && (
+                  <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 

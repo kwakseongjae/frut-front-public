@@ -14,12 +14,12 @@ import ProductCard from "@/components/ProductCard";
 import ProfileImageViewer from "@/components/ProfileImageViewer";
 import ReviewImageViewer from "@/components/ReviewImageViewer";
 import {
-  useFarmNews,
   useFarmProfile,
   useFollowedFarms,
+  useInfiniteFarmNews,
   useToggleFollowFarm,
 } from "@/lib/api/hooks/use-best-farms";
-import { useSellerProducts } from "@/lib/api/hooks/use-products";
+import { useInfiniteSellerProducts } from "@/lib/api/hooks/use-products";
 import { useSellerReviews } from "@/lib/api/hooks/use-reviews";
 import type { Product } from "@/lib/api/products";
 import type { SellerReview } from "@/lib/api/reviews";
@@ -63,17 +63,30 @@ const FarmProfilePage = () => {
     }
   }, [farmProfile?.is_own_farm, router]);
 
-  // 농장 소식 목록 조회
-  const { data: farmNewsData, isLoading: isLoadingNews } = useFarmNews({
+  // 농장 소식 목록 조회 (무한 스크롤)
+  const {
+    data: farmNewsData,
+    isLoading: isLoadingNews,
+    fetchNextPage: fetchNextNewsPage,
+    hasNextPage: hasNextNewsPage,
+    isFetchingNextPage: isFetchingNextNewsPage,
+  } = useInfiniteFarmNews({
     farm_id: numericFarmId,
   });
+  const newsObserverTarget = useRef<HTMLDivElement>(null);
 
-  // 농장 상품 목록 조회 (상품 탭이 활성화되었을 때만 요청)
-  const { data: farmProductsData, isLoading: isLoadingProducts } =
-    useSellerProducts({
+  // 농장 상품 목록 조회 (무한 스크롤, 상품 탭이 활성화되었을 때만 요청)
+  const {
+    data: farmProductsData,
+    isLoading: isLoadingProducts,
+    fetchNextPage: fetchNextProductsPage,
+    hasNextPage: hasNextProductsPage,
+    isFetchingNextPage: isFetchingNextProductsPage,
+  } = useInfiniteSellerProducts({
       farm_id: numericFarmId,
       enabled: activeTab === "products",
     });
+  const productsObserverTarget = useRef<HTMLDivElement>(null);
 
   // 농장 리뷰 목록 조회 (후기 탭이 활성화되었을 때만 요청)
   const { data: farmReviewsData, isLoading: isLoadingReviews } =
@@ -147,17 +160,19 @@ const FarmProfilePage = () => {
     return `${year}.${month}.${day}`;
   }, []);
 
+  // 모든 페이지의 소식 데이터를 평탄화
+  const allNewsData = useMemo(() => {
+    if (!farmNewsData?.pages) return [];
+    return farmNewsData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((news) => news !== undefined && news !== null);
+  }, [farmNewsData]);
+
   // API 데이터를 NewsPost 형식으로 변환
   const newsPosts: NewsPost[] = useMemo(() => {
-    if (!farmNewsData) return [];
+    if (!allNewsData || allNewsData.length === 0) return [];
 
-    // farmNewsData가 배열인지 확인
-    if (!Array.isArray(farmNewsData)) {
-      console.error("farmNewsData is not an array:", farmNewsData);
-      return [];
-    }
-
-    return farmNewsData.map((news) => ({
+    return allNewsData.map((news) => ({
       id: news.id,
       farmName: news.farm_name,
       date: formatDate(news.created_at),
@@ -168,7 +183,88 @@ const FarmProfilePage = () => {
           ? news.images.map((img) => img.image_url)
           : undefined,
     }));
-  }, [farmNewsData, formatDate]);
+  }, [allNewsData, formatDate]);
+
+  // 모든 페이지의 상품 데이터를 평탄화
+  const allProductsData = useMemo(() => {
+    if (!farmProductsData?.pages) return [];
+    return farmProductsData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((product) => product !== undefined && product !== null);
+  }, [farmProductsData]);
+
+  // Intersection Observer로 무한 스크롤 구현 (소식)
+  useEffect(() => {
+    if (activeTab !== "news" || !hasNextNewsPage || isFetchingNextNewsPage)
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasNextNewsPage &&
+          !isFetchingNextNewsPage
+        ) {
+          fetchNextNewsPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = newsObserverTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [activeTab, hasNextNewsPage, isFetchingNextNewsPage, fetchNextNewsPage]);
+
+  // Intersection Observer로 무한 스크롤 구현 (상품)
+  useEffect(() => {
+    if (
+      activeTab !== "products" ||
+      !hasNextProductsPage ||
+      isFetchingNextProductsPage
+    )
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasNextProductsPage &&
+          !isFetchingNextProductsPage
+        ) {
+          fetchNextProductsPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = productsObserverTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [
+    activeTab,
+    hasNextProductsPage,
+    isFetchingNextProductsPage,
+    fetchNextProductsPage,
+  ]);
 
   useEffect(() => {
     const checkOverflow = () => {
@@ -367,7 +463,8 @@ const FarmProfilePage = () => {
                 <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
               </div>
             ) : newsPosts.length > 0 ? (
-              newsPosts.map((post, index) => (
+              <>
+                {newsPosts.map((post, index) => (
                 <div key={post.id}>
                   <div className="px-5 py-4">
                     <div className="flex gap-3 mb-3">
@@ -432,7 +529,19 @@ const FarmProfilePage = () => {
                     <div className="h-[10px] bg-[#F7F7F7]" />
                   )}
                 </div>
-              ))
+                ))}
+                {/* 무한 스크롤 감지용 요소 */}
+                {hasNextNewsPage && (
+                  <div
+                    ref={newsObserverTarget}
+                    className="h-10 flex items-center justify-center"
+                  >
+                    {isFetchingNextNewsPage && (
+                      <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="px-5 py-10 flex items-center justify-center">
                 <p className="text-sm text-[#8C8C8C]">
@@ -448,9 +557,10 @@ const FarmProfilePage = () => {
               <div className="flex items-center justify-center py-10">
                 <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
               </div>
-            ) : farmProductsData && farmProductsData.length > 0 ? (
+            ) : allProductsData && allProductsData.length > 0 ? (
+              <>
               <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-                {farmProductsData.map((product: Product) => (
+                  {allProductsData.map((product: Product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -459,6 +569,18 @@ const FarmProfilePage = () => {
                   />
                 ))}
               </div>
+                {/* 무한 스크롤 감지용 요소 */}
+                {hasNextProductsPage && (
+                  <div
+                    ref={productsObserverTarget}
+                    className="h-10 flex items-center justify-center"
+                  >
+                    {isFetchingNextProductsPage && (
+                      <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex items-center justify-center py-10">
                 <p className="text-sm text-[#8C8C8C]">

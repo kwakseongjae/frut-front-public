@@ -98,10 +98,68 @@ export const useSellerProducts = (
   });
 };
 
+export const useInfiniteSellerProducts = (
+  params: Omit<SellerProductsParams, "page"> & { enabled?: boolean }
+) => {
+  const { enabled = true, ...queryParams } = params;
+  return useInfiniteQuery({
+    queryKey: [
+      ...productsQueryKeys.sellerProducts(queryParams.farm_id),
+      "infinite",
+    ],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await productsApi.getSellerProducts({
+        ...queryParams,
+        page: pageParam,
+      });
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
+    enabled,
+  });
+};
+
 export const useMySellerItems = () => {
   return useQuery({
     queryKey: productsQueryKeys.mySellerItems(),
     queryFn: () => productsApi.getMySellerItems(),
+  });
+};
+
+export const useInfiniteMySellerItems = () => {
+  return useInfiniteQuery({
+    queryKey: [...productsQueryKeys.mySellerItems(), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await productsApi.getMySellerItems(pageParam);
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
   });
 };
 
@@ -111,6 +169,36 @@ export const useSellerManagementProducts = (
   return useQuery({
     queryKey: productsQueryKeys.sellerManagement(params),
     queryFn: () => productsApi.getSellerManagementProducts(params),
+  });
+};
+
+export const useInfiniteSellerManagementProducts = (
+  params?: Omit<SellerManagementParams, "page">
+) => {
+  return useInfiniteQuery({
+    queryKey: [...productsQueryKeys.sellerManagement(params), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      const response = await productsApi.getSellerManagementProducts({
+        ...params,
+        page: pageParam,
+      });
+      return response;
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage?.products || !lastPage.products.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.products.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
   });
 };
 

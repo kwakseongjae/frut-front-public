@@ -34,8 +34,10 @@ const EditNewsPage = () => {
 
   // 소식 데이터 로드
   useEffect(() => {
-    if (newsData) {
-      const newsItem = newsData.find((news) => news.id === numericNewsId);
+    if (newsData?.results) {
+      const newsItem = newsData.results.find(
+        (news) => news.id === numericNewsId
+      );
       if (newsItem) {
         setTitle(newsItem.title);
         setContent(newsItem.content);
@@ -56,7 +58,7 @@ const EditNewsPage = () => {
         // URL과 path를 매핑하는 Map 생성
         const urlToPathMap = new Map<string, string>();
         if (newsItem.images && newsItem.paths) {
-          newsItem.images.forEach((img, index) => {
+          newsItem.images.forEach((img) => {
             const pathItem = newsItem.paths?.find((p) => p.id === img.id);
             if (pathItem) {
               urlToPathMap.set(img.image_url, pathItem.path);
@@ -283,27 +285,32 @@ const EditNewsPage = () => {
         {/* 사진 미리보기 */}
         {images.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {images.map((image, index) => (
-              <div
-                key={`${image}-${index}`}
-                className="relative w-20 h-20 rounded overflow-hidden bg-[#D9D9D9]"
-              >
-                <Image
-                  src={image}
-                  alt={`사진 ${index + 1}`}
-                  fill
-                  className="object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveImage(index)}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm"
-                  aria-label="사진 삭제"
+            {images.map((image, index) => {
+              const imageKey = image.startsWith("data:")
+                ? `data-${Date.now()}-${index}`
+                : image;
+              return (
+                <div
+                  key={imageKey}
+                  className="relative w-20 h-20 rounded overflow-hidden bg-[#D9D9D9]"
                 >
-                  <CloseIcon />
-                </button>
-              </div>
-            ))}
+                  <Image
+                    src={image}
+                    alt={`사진 ${index + 1}`}
+                    fill
+                    className="object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(index)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm"
+                    aria-label="사진 삭제"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 

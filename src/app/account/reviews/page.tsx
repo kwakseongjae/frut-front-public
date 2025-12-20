@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import BentRightDownIcon from "@/assets/icon/ic_bent_right_down_black_24.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import DotMenuIcon from "@/assets/icon/ic_dot_menu_grey_14.svg";
@@ -12,8 +12,8 @@ import { fruits } from "@/assets/images/dummy";
 import ReviewImageViewer from "@/components/ReviewImageViewer";
 import {
   useDeleteReview,
-  useReviewableItems,
-  useWrittenReviews,
+  useInfiniteReviewableItems,
+  useInfiniteWrittenReviews,
 } from "@/lib/api/hooks/use-reviews";
 import type { WrittenReview as WrittenReviewType } from "@/lib/api/reviews";
 
@@ -37,11 +37,23 @@ const ReviewsPageContent = () => {
     | "written";
   const [activeTab, setActiveTab] = useState<"write" | "written">(initialTab);
 
-  const { data: reviewableData, isLoading: isLoadingReviewable } =
-    useReviewableItems();
-  const { data: writtenReviewsData, isLoading: isLoadingWritten } =
-    useWrittenReviews();
+  const {
+    data: reviewableData,
+    isLoading: isLoadingReviewable,
+    fetchNextPage: fetchNextReviewablePage,
+    hasNextPage: hasNextReviewablePage,
+    isFetchingNextPage: isFetchingNextReviewablePage,
+  } = useInfiniteReviewableItems();
+  const {
+    data: writtenReviewsData,
+    isLoading: isLoadingWritten,
+    fetchNextPage: fetchNextWrittenPage,
+    hasNextPage: hasNextWrittenPage,
+    isFetchingNextPage: isFetchingNextWrittenPage,
+  } = useInfiniteWrittenReviews();
   const deleteReviewMutation = useDeleteReview();
+  const reviewableObserverTarget = useRef<HTMLDivElement>(null);
+  const writtenObserverTarget = useRef<HTMLDivElement>(null);
 
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
@@ -66,9 +78,106 @@ const ReviewsPageContent = () => {
     router.replace(`/account/reviews?${params.toString()}`);
   };
 
+  // 모든 페이지의 데이터를 평탄화
+  const allReviewableItems = useMemo(() => {
+    if (!reviewableData?.pages) return [];
+    return reviewableData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((item) => item !== undefined && item !== null);
+  }, [reviewableData]);
+
+  const allWrittenReviews = useMemo(() => {
+    if (!writtenReviewsData?.pages) return [];
+    return writtenReviewsData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((review) => review !== undefined && review !== null);
+  }, [writtenReviewsData]);
+
+  // Intersection Observer로 무한 스크롤 구현 (작성 가능한 상품)
+  useEffect(() => {
+    if (
+      activeTab !== "write" ||
+      !hasNextReviewablePage ||
+      isFetchingNextReviewablePage
+    )
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasNextReviewablePage &&
+          !isFetchingNextReviewablePage
+        ) {
+          fetchNextReviewablePage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = reviewableObserverTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [
+    activeTab,
+    hasNextReviewablePage,
+    isFetchingNextReviewablePage,
+    fetchNextReviewablePage,
+  ]);
+
+  // Intersection Observer로 무한 스크롤 구현 (작성한 후기)
+  useEffect(() => {
+    if (
+      activeTab !== "written" ||
+      !hasNextWrittenPage ||
+      isFetchingNextWrittenPage
+    )
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasNextWrittenPage &&
+          !isFetchingNextWrittenPage
+        ) {
+          fetchNextWrittenPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = writtenObserverTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [
+    activeTab,
+    hasNextWrittenPage,
+    isFetchingNextWrittenPage,
+    fetchNextWrittenPage,
+  ]);
+
   // 작성 가능한 상품 목록 변환
   const availableProducts: PurchasedProduct[] = useMemo(() => {
-    if (!reviewableData?.results) {
+    if (!allReviewableItems || allReviewableItems.length === 0) {
       return [];
     }
 
@@ -90,7 +199,7 @@ const ReviewsPageContent = () => {
       return `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/${imageUrl}`;
     };
 
-    return reviewableData.results.map((item) => ({
+    return allReviewableItems.map((item) => ({
       id: item.order_item_id,
       farmName: item.farm_name,
       productName: item.product_name,
@@ -100,8 +209,7 @@ const ReviewsPageContent = () => {
       orderItemId: item.order_item_id,
       productId: item.product_id,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewableData]);
+  }, [allReviewableItems]);
 
   // 날짜 포맷팅 함수
   const formatDate = (dateString: string) => {
@@ -123,11 +231,8 @@ const ReviewsPageContent = () => {
 
   // 작성한 후기 목록 변환
   const writtenReviews: WrittenReviewType[] = useMemo(() => {
-    if (!writtenReviewsData?.results) {
-      return [];
-    }
-    return writtenReviewsData.results;
-  }, [writtenReviewsData]);
+    return allWrittenReviews;
+  }, [allWrittenReviews]);
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, index) => (
@@ -271,6 +376,17 @@ const ReviewsPageContent = () => {
                     </div>
                   </div>
                 ))}
+                {/* 무한 스크롤 감지용 요소 */}
+                {hasNextReviewablePage && (
+                  <div
+                    ref={reviewableObserverTarget}
+                    className="h-10 flex items-center justify-center"
+                  >
+                    {isFetchingNextReviewablePage && (
+                      <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="px-5 py-20 flex flex-col items-center justify-center text-center">

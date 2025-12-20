@@ -308,7 +308,6 @@ const BusinessProfileApplyPage = () => {
     }
     // 필수 서류는 이미지/PDF
     const requiredIds = [
-      "online-sales-report",
       "business-registration",
       "representative-id",
       "bankbook",
@@ -373,9 +372,6 @@ const BusinessProfileApplyPage = () => {
     if (value.trim() === "") return null; // 빈 값은 필수 필드 검증에서 처리
     if (!/^[0-9]+$/.test(value)) {
       return "숫자만 입력 가능합니다.";
-    }
-    if (value.length > 11) {
-      return "계좌번호는 11자 이하여야 합니다.";
     }
     return null;
   };
@@ -451,14 +447,10 @@ const BusinessProfileApplyPage = () => {
           // API 필드명으로 매핑
           if (doc.id === "business-registration") {
             documentPaths.business_registration = gcsPath;
-          } else if (doc.id === "online-sales-report") {
-            documentPaths.telecom_sales_report = gcsPath;
           } else if (doc.id === "representative-id") {
             documentPaths.representative_id = gcsPath;
           } else if (doc.id === "bankbook") {
             documentPaths.bank_account_copy = gcsPath;
-          } else if (doc.id === "farm-profile-photo") {
-            documentPaths.farm_profile_photo = gcsPath;
           }
         }
       }
@@ -467,12 +459,16 @@ const BusinessProfileApplyPage = () => {
       for (const doc of optionalDocuments) {
         if (doc.file) {
           const gcsPath = await uploadFileToGCS(doc.file);
-          if (doc.id === "gap-certificate") {
+          if (doc.id === "online-sales-report") {
+            documentPaths.telecom_sales_report = gcsPath;
+          } else if (doc.id === "gap-certificate") {
             documentPaths.gap_certificate = gcsPath;
           } else if (doc.id === "organic-certificate") {
             documentPaths.organic_certificate = gcsPath;
           } else if (doc.id === "haccp-certificate") {
             documentPaths.haccp_certificate = gcsPath;
+          } else if (doc.id === "farm-profile-photo") {
+            documentPaths.farm_profile_photo = gcsPath;
           } else if (doc.id === "pesticide-test") {
             documentPaths.pesticide_test_report = gcsPath;
           }
@@ -493,20 +489,27 @@ const BusinessProfileApplyPage = () => {
       formData.append("account_number", accountNumber.trim());
       formData.append("account_holder", accountHolder.trim());
 
-      // 필수 서류
-      formData.append(
-        "business_registration",
-        documentPaths.business_registration
-      );
-      formData.append(
-        "telecom_sales_report",
-        documentPaths.telecom_sales_report
-      );
-      formData.append("representative_id", documentPaths.representative_id);
-      formData.append("bank_account_copy", documentPaths.bank_account_copy);
-      formData.append("farm_profile_photo", documentPaths.farm_profile_photo);
+      // 필수 서류 (반드시 값이 있어야 함)
+      if (documentPaths.business_registration) {
+        formData.append(
+          "business_registration",
+          documentPaths.business_registration
+        );
+      }
+      if (documentPaths.representative_id) {
+        formData.append("representative_id", documentPaths.representative_id);
+      }
+      if (documentPaths.bank_account_copy) {
+        formData.append("bank_account_copy", documentPaths.bank_account_copy);
+      }
 
       // 선택 서류 (있는 경우만)
+      if (documentPaths.telecom_sales_report) {
+        formData.append(
+          "telecom_sales_report",
+          documentPaths.telecom_sales_report
+        );
+      }
       if (documentPaths.gap_certificate) {
         formData.append("gap_certificate", documentPaths.gap_certificate);
       }
@@ -518,6 +521,9 @@ const BusinessProfileApplyPage = () => {
       }
       if (documentPaths.haccp_certificate) {
         formData.append("haccp_certificate", documentPaths.haccp_certificate);
+      }
+      if (documentPaths.farm_profile_photo) {
+        formData.append("farm_profile_photo", documentPaths.farm_profile_photo);
       }
       if (documentPaths.pesticide_test_report) {
         formData.append(
@@ -806,7 +812,7 @@ const BusinessProfileApplyPage = () => {
               {/* 필수 제출 서류 섹션 */}
               <div className="px-4 py-4 bg-white rounded shadow-[0_0_10px_2px_rgba(0,0,0,0.1)]">
                 <h2 className="text-base font-semibold text-[#262626] mb-4">
-                  필수 제출 서류
+                  필수 제출 서류 <span className="text-[#F73535]">*</span>
                 </h2>
                 <div className="flex flex-col gap-[10px]">
                   {requiredDocuments.map((doc) => (

@@ -4,14 +4,19 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import FarmCard from "@/components/FarmCard";
-import { useFollowedFarms } from "@/lib/api/hooks/use-best-farms";
+import { useInfiniteFollowedFarms } from "@/lib/api/hooks/use-best-farms";
 import { sellersApi } from "@/lib/api/sellers";
 
 export default function FarmsPage() {
-  const isInitialMount = useRef(true);
-
-  // 팔로우한 농장 목록 조회
-  const { data: followedFarmsData, isLoading, refetch } = useFollowedFarms();
+  // 팔로우한 농장 목록 조회 (무한 스크롤)
+  const {
+    data: followedFarmsData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteFollowedFarms();
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   // 팔로우 농장 페이지 전용 mutation (쿼리 무효화 없음)
   const toggleFollowMutation = useMutation({
@@ -27,19 +32,40 @@ export default function FarmsPage() {
     Record<number, boolean>
   >({});
 
-  // 컴포넌트 마운트 시 refetch (재진입 시 최신 데이터 가져오기)
+  // 모든 페이지의 데이터를 평탄화
+  const allFarms = useMemo(() => {
+    if (!followedFarmsData?.pages) return [];
+    return followedFarmsData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((farm) => farm !== undefined && farm !== null);
+  }, [followedFarmsData]);
+
+  // Intersection Observer로 무한 스크롤 구현
   useEffect(() => {
-    // 초기 마운트가 아닌 경우에만 refetch (재진입 감지)
-    if (!isInitialMount.current) {
-      refetch().then(() => {
-        // refetch 완료 후 로컬 상태 초기화
-        setLocalFollowStates({});
-      });
-    } else {
-      isInitialMount.current = false;
+    if (!hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 빈 배열로 마운트 시에만 실행
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 팔로우 상태 결정: 로컬 상태가 있으면 로컬 상태 사용, 없으면 API 데이터 사용
   const getFollowState = (farmId: number) => {
@@ -65,9 +91,8 @@ export default function FarmsPage() {
 
   // 팔로우 취소한 농장도 리스트에 유지 (로컬 상태가 false인 경우도 표시)
   const farms = useMemo(() => {
-    if (!followedFarmsData?.results) return [];
-    return followedFarmsData.results;
-  }, [followedFarmsData]);
+    return allFarms;
+  }, [allFarms]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -93,6 +118,7 @@ export default function FarmsPage() {
           <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
         </div>
       ) : farms.length > 0 ? (
+        <>
         <div className="px-5 py-4 flex flex-col divide-y divide-[#D9D9D9]">
           {farms.map((farm) => (
             <FarmCard
@@ -105,6 +131,18 @@ export default function FarmsPage() {
             />
           ))}
         </div>
+          {/* 무한 스크롤 감지용 요소 */}
+          {hasNextPage && (
+            <div
+              ref={observerTarget}
+              className="h-10 flex items-center justify-center"
+            >
+              {isFetchingNextPage && (
+                <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+              )}
+            </div>
+          )}
+        </>
       ) : (
         <div className="px-5 py-20 flex flex-col items-center justify-center text-center">
           <p className="font-medium text-[#8C8C8C]">

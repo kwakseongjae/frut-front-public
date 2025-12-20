@@ -146,7 +146,7 @@ const AccountPage = () => {
           </Link>
           <Link
             href={
-              user?.user_type === "SELLER"
+              user?.user_type === "SELLER" || user?.user_type === "ADMIN"
                 ? "/account/business"
                 : "/account/business/apply"
             }

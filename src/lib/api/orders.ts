@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { PaginatedResponse } from "./products";
 
 export interface OrderPreviewRequest {
   order_type: "cart" | "direct";
@@ -222,6 +223,9 @@ export interface RefundableItemsResponse {
   message: string;
 }
 
+export interface RefundableItemsPaginatedResponse
+  extends PaginatedResponse<RefundableItem> {}
+
 export const ordersApi = {
   preview: async (
     request: OrderPreviewRequest
@@ -250,10 +254,17 @@ export const ordersApi = {
     );
     return data;
   },
-  getOrders: async (): Promise<OrderListResponse> => {
+  getOrders: async (page?: number): Promise<OrderListResponse> => {
     // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-    const url = `${API_BASE_URL}/api/orders`;
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/orders${
+      queryString ? `?${queryString}` : ""
+    }`;
 
     let accessToken: string | null = null;
     if (typeof window !== "undefined") {
@@ -321,11 +332,76 @@ export const ordersApi = {
     );
     return data;
   },
-  getRefundableItems: async (): Promise<RefundableItem[]> => {
-    const data = await apiClient.get<RefundableItem[]>(
-      "/api/orders/refundable-items"
-    );
-    return data || [];
+  getRefundableItems: async (
+    page?: number
+  ): Promise<RefundableItemsPaginatedResponse> => {
+    // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/orders/refundable-items${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("환불 가능한 상품 목록을 불러오는데 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
+        return jsonData.data as RefundableItemsPaginatedResponse;
+      }
+    }
+
+    // 직접 페이지네이션 형식인 경우
+    if (jsonData.count !== undefined && jsonData.results !== undefined) {
+      return jsonData as RefundableItemsPaginatedResponse;
+    }
+
+    // 기본값 반환
+    return {
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    };
   },
   getRefundableItemDetail: async (
     orderItemId: number
@@ -335,10 +411,17 @@ export const ordersApi = {
     );
     return data;
   },
-  getSellerOrders: async (): Promise<SellerOrderListResponse> => {
+  getSellerOrders: async (page?: number): Promise<SellerOrderListResponse> => {
     // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-    const url = `${API_BASE_URL}/api/orders/seller/orders`;
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/orders/seller/orders${
+      queryString ? `?${queryString}` : ""
+    }`;
 
     let accessToken: string | null = null;
     if (typeof window !== "undefined") {
@@ -366,10 +449,25 @@ export const ordersApi = {
 
     // 응답이 { success, data } 형식인지 확인
     if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
       return jsonData.data as SellerOrderListResponse;
+      }
     }
 
-    // 직접 데이터 형식인 경우
+    // 직접 페이지네이션 형식인 경우
     if (jsonData.count !== undefined && jsonData.results !== undefined) {
       return jsonData as SellerOrderListResponse;
     }

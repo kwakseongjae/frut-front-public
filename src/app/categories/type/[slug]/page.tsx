@@ -41,7 +41,12 @@ function CategoryContent({ type }: { type: ProductListType }) {
     useInfiniteProducts({ type });
 
   // 모든 페이지의 상품을 평탄화 (안전하게 처리)
-  const products = data?.pages?.flatMap((page) => page?.results ?? []) ?? [];
+  const products = useMemo(() => {
+    if (!data?.pages) return [];
+    return data.pages
+      .flatMap((page) => page?.results ?? [])
+      .filter((product) => product !== undefined && product !== null);
+  }, [data]);
 
   // 스켈레톤 로딩용 고유 ID 생성
   const skeletonIds = useMemo(
@@ -163,6 +168,4 @@ export default function CategoryPage() {
     </div>
   );
 }
-
-
 

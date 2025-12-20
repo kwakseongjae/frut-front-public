@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ChevronRightIcon from "@/assets/icon/ic_chevron_right_grey_17.svg";
 import { fruits } from "@/assets/images/dummy";
 import OrderItem from "@/components/OrderItem";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { useOrders } from "@/lib/api/hooks/use-order";
+import { useInfiniteOrders } from "@/lib/api/hooks/use-order";
 
 type OrderStatus =
   | "상품접수"
@@ -48,7 +48,22 @@ interface Order {
 const OrdersPage = () => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"ongoing" | "history">("ongoing");
-  const { data: ordersData, isLoading } = useOrders();
+  const {
+    data: ordersData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteOrders();
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  // 모든 페이지의 데이터를 평탄화
+  const allOrders = useMemo(() => {
+    if (!ordersData?.pages) return [];
+    return ordersData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((order) => order !== undefined && order !== null);
+  }, [ordersData]);
 
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
@@ -88,13 +103,40 @@ const OrdersPage = () => {
     router.push("/account/reviews");
   };
 
+  // Intersection Observer로 무한 스크롤 구현
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   // API 데이터를 개별 주문으로 변환 (그룹화 없이)
   const transformedOrders = useMemo((): Order[] => {
-    if (!ordersData?.results) {
+    if (!allOrders || allOrders.length === 0) {
       return [];
     }
 
-    return ordersData.results.map((item) => {
+    return allOrders.map((item) => {
       const status = item.item_status;
 
       // 상태 변환
@@ -154,7 +196,7 @@ const OrdersPage = () => {
         },
       };
     });
-  }, [ordersData]);
+  }, [allOrders]);
 
   // 상태별로 필터링
   const ongoingOrders = useMemo(() => {
@@ -335,6 +377,17 @@ const OrdersPage = () => {
                   )}
                 </div>
               ))}
+              {/* 무한 스크롤 감지용 요소 */}
+              {hasNextPage && (
+                <div
+                  ref={observerTarget}
+                  className="h-10 flex items-center justify-center"
+                >
+                  {isFetchingNextPage && (
+                    <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="px-5 py-20 flex flex-col items-center justify-center text-center">

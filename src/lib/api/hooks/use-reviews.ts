@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { queryKeys } from "../query-keys";
 import type {
   CreateReviewReplyRequest,
@@ -13,6 +18,30 @@ export const useReviewableItems = () => {
   return useQuery({
     queryKey: queryKeys.reviews.reviewable(),
     queryFn: () => reviewsApi.getReviewableItems(),
+  });
+};
+
+export const useInfiniteReviewableItems = () => {
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.reviews.reviewable(), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await reviewsApi.getReviewableItems(pageParam);
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
   });
 };
 
@@ -39,6 +68,30 @@ export const useWrittenReviews = () => {
   return useQuery({
     queryKey: queryKeys.reviews.written(),
     queryFn: () => reviewsApi.getWrittenReviews(),
+  });
+};
+
+export const useInfiniteWrittenReviews = () => {
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.reviews.written(), "infinite"],
+    queryFn: async ({ pageParam = 1 }) => {
+      return await reviewsApi.getWrittenReviews(pageParam);
+    },
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.next) {
+        return undefined;
+      }
+      try {
+        const baseUrl =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const url = new URL(lastPage.next, baseUrl);
+        const pageParam = url.searchParams.get("page");
+        return pageParam ? parseInt(pageParam, 10) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialPageParam: 1,
   });
 };
 

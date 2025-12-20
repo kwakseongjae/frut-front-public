@@ -3,7 +3,7 @@
 import useEmblaCarousel from "embla-carousel-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BentRightDownIcon from "@/assets/icon/ic_bent_right_down_black_24.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ChevronRightWhiteIcon from "@/assets/icon/ic_chevron_right_white_24.svg";
@@ -22,10 +22,10 @@ import ReviewImageViewer from "@/components/ReviewImageViewer";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useDeleteNews,
-  useMyFarmNews,
+  useInfiniteMyFarmNews,
   useMySellerProfile,
 } from "@/lib/api/hooks/use-best-farms";
-import { useMySellerItems } from "@/lib/api/hooks/use-products";
+import { useInfiniteMySellerItems } from "@/lib/api/hooks/use-products";
 import {
   useCreateReviewReply,
   useMySellerReviews,
@@ -66,9 +66,22 @@ const BusinessProfilePage = () => {
   const { user, isInitialized, isLoggedIn } = useAuth();
   const { data: profileData, isLoading: isProfileLoading } =
     useMySellerProfile();
-  const { data: newsData, isLoading: isNewsLoading } = useMyFarmNews();
-  const { data: productsData, isLoading: isProductsLoading } =
-    useMySellerItems();
+  const {
+    data: newsData,
+    isLoading: isNewsLoading,
+    fetchNextPage: fetchNextNewsPage,
+    hasNextPage: hasNextNewsPage,
+    isFetchingNextPage: isFetchingNextNewsPage,
+  } = useInfiniteMyFarmNews();
+  const newsObserverTarget = useRef<HTMLDivElement>(null);
+  const {
+    data: productsData,
+    isLoading: isProductsLoading,
+    fetchNextPage: fetchNextProductsPage,
+    hasNextPage: hasNextProductsPage,
+    isFetchingNextPage: isFetchingNextProductsPage,
+  } = useInfiniteMySellerItems();
+  const productsObserverTarget = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"news" | "products" | "reviews">(
     "news"
   );
@@ -101,8 +114,8 @@ const BusinessProfilePage = () => {
       return;
     }
 
-    // SELLER가 아니면 접근 차단
-    if (user.user_type !== "SELLER") {
+    // SELLER나 ADMIN이 아니면 접근 차단
+    if (user.user_type !== "SELLER" && user.user_type !== "ADMIN") {
       alert("판매자 권한이 없습니다.");
       router.replace("/account");
     }
@@ -173,29 +186,128 @@ const BusinessProfilePage = () => {
     });
   };
 
+  // 모든 페이지의 소식 데이터를 평탄화
+  const allNewsData = useMemo(() => {
+    if (!newsData?.pages) return [];
+    return newsData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((news): news is FarmNews => news !== undefined && news !== null);
+  }, [newsData]);
+
+  // 모든 페이지의 상품 데이터를 평탄화
+  const allProductsData = useMemo(() => {
+    if (!productsData?.pages) return [];
+    return productsData.pages
+      .flatMap((page) => page?.results || [])
+      .filter((product) => product !== undefined && product !== null);
+  }, [productsData]);
+
   // API 데이터를 NewsPost 형식으로 변환
-  const formatDate = (dateString: string): string => {
+  const formatDate = useCallback((dateString: string): string => {
     const date = new Date(dateString);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}.${month}.${day}`;
-  };
+  }, []);
 
-  const newsPosts: NewsPost[] =
-    newsData?.map((news: FarmNews) => ({
-      id: news.id,
-      farmName: news.farm_name,
-      date: formatDate(news.created_at),
-      title: news.title,
-      content: news.content,
-      images:
-        news.images && news.images.length > 0
-          ? news.images.map((img) => img.image_url)
-          : undefined,
-    })) || [];
+  const newsPosts: NewsPost[] = useMemo(() => {
+    if (!allNewsData || allNewsData.length === 0) return [];
+    return allNewsData
+      .filter((news): news is FarmNews => news !== undefined && news !== null)
+      .map((news) => ({
+        id: news.id,
+        farmName: news.farm_name,
+        date: formatDate(news.created_at),
+        title: news.title,
+        content: news.content,
+        images:
+          news.images && news.images.length > 0
+            ? news.images.map((img) => img.image_url)
+            : undefined,
+      }));
+  }, [allNewsData, formatDate]);
 
+  // Intersection Observer로 무한 스크롤 구현 (소식)
   useEffect(() => {
+    if (activeTab !== "news" || !hasNextNewsPage || isFetchingNextNewsPage)
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasNextNewsPage &&
+          !isFetchingNextNewsPage
+        ) {
+          fetchNextNewsPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = newsObserverTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [activeTab, hasNextNewsPage, isFetchingNextNewsPage, fetchNextNewsPage]);
+
+  // Intersection Observer로 무한 스크롤 구현 (상품)
+  useEffect(() => {
+    if (
+      activeTab !== "products" ||
+      !hasNextProductsPage ||
+      isFetchingNextProductsPage
+    )
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasNextProductsPage &&
+          !isFetchingNextProductsPage
+        ) {
+          fetchNextProductsPage();
+        }
+      },
+      {
+        threshold: 0.1,
+      }
+    );
+
+    const currentTarget = productsObserverTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [
+    activeTab,
+    hasNextProductsPage,
+    isFetchingNextProductsPage,
+    fetchNextProductsPage,
+  ]);
+
+  // newsPosts나 expandedPosts가 변경될 때 overflow 체크
+  useEffect(() => {
+    // newsPosts가 없으면 실행하지 않음
+    if (newsPosts.length === 0) {
+      return;
+    }
+
     const checkOverflow = () => {
       const newNeedsExpandButton = new Set<number>();
       Object.entries(contentRefs.current).forEach(([postId, element]) => {
@@ -209,7 +321,15 @@ const BusinessProfilePage = () => {
           }
         }
       });
-      setNeedsExpandButton(newNeedsExpandButton);
+      // 이전 값과 비교하여 변경이 있을 때만 업데이트
+      setNeedsExpandButton((prevSet) => {
+        const hasChanged =
+          newNeedsExpandButton.size !== prevSet.size ||
+          Array.from(newNeedsExpandButton).some((id) => !prevSet.has(id)) ||
+          Array.from(prevSet).some((id) => !newNeedsExpandButton.has(id));
+
+        return hasChanged ? newNeedsExpandButton : prevSet;
+      });
     };
 
     // DOM이 렌더링된 후 체크
@@ -219,7 +339,8 @@ const BusinessProfilePage = () => {
       clearTimeout(timeoutId);
       window.removeEventListener("resize", checkOverflow);
     };
-  });
+    // biome-ignore lint/correctness/useExhaustiveDependencies: newsPosts와 expandedPosts 변경 시 overflow 재체크 필요
+  }, [newsPosts.length, expandedPosts.size]);
 
   // 초기화 중이거나 로그인하지 않았거나 user가 아직 로드되지 않은 경우 로딩 표시
   if (!isInitialized || !isLoggedIn || !user) {
@@ -232,8 +353,8 @@ const BusinessProfilePage = () => {
     );
   }
 
-  // SELLER가 아니면 접근 차단 (이미 useEffect에서 처리되지만, 렌더링 방지)
-  if (user.user_type !== "SELLER") {
+  // SELLER나 ADMIN이 아니면 접근 차단 (이미 useEffect에서 처리되지만, 렌더링 방지)
+  if (user.user_type !== "SELLER" && user.user_type !== "ADMIN") {
     return (
       <div className="flex flex-col min-h-screen bg-white">
         <div className="flex items-center justify-center py-20">
@@ -415,141 +536,154 @@ const BusinessProfilePage = () => {
                 </p>
               </div>
             ) : (
-              newsPosts.map((post, index) => {
-                const newsItem = newsData?.find((n) => n.id === post.id);
-                return (
-                  <div key={post.id}>
-                    <div className="px-5 py-4">
-                      <div className="flex gap-3 mb-3 relative">
-                        {/* 프로필 이미지 */}
-                        {newsItem?.farm_image ? (
-                          <div className="w-10 h-10 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden">
-                            <Image
-                              src={newsItem.farm_image}
-                              alt={`${post.farmName} 프로필`}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#D9D9D9] flex-shrink-0" />
-                        )}
-                        <div className="flex flex-col gap-1 flex-1">
-                          <span className="text-sm font-semibold text-[#262626]">
-                            {post.farmName}
-                          </span>
-                          <span className="text-xs text-[#8C8C8C]">
-                            {post.date}
-                          </span>
-                        </div>
-                        {/* 더보기 버튼 */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenNewsMenuId(
-                                openNewsMenuId === post.id ? null : post.id
-                              );
-                            }}
-                            className="p-1 cursor-pointer"
-                            aria-label="더보기"
-                          >
-                            <DotMenuIcon className="rotate-90" />
-                          </button>
-                          {/* 드롭다운 모달 */}
-                          {openNewsMenuId === post.id && (
-                            <>
-                              <button
-                                type="button"
-                                className="fixed inset-0 z-10"
-                                onClick={() => setOpenNewsMenuId(null)}
-                                aria-label="메뉴 닫기"
+              <>
+                {newsPosts.map((post, index) => {
+                  const newsItem = allNewsData.find((n) => n.id === post.id);
+                  return (
+                    <div key={post.id}>
+                      <div className="px-5 py-4">
+                        <div className="flex gap-3 mb-3 relative">
+                          {/* 프로필 이미지 */}
+                          {newsItem?.farm_image ? (
+                            <div className="w-10 h-10 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden">
+                              <Image
+                                src={newsItem.farm_image}
+                                alt={`${post.farmName} 프로필`}
+                                fill
+                                className="object-cover"
                               />
-                              <div className="absolute top-full right-0 mt-1 bg-white border border-[#D9D9D9] rounded shadow-lg z-20 min-w-[120px]">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenNewsMenuId(null);
-                                    router.push(
-                                      `/account/business/news/edit/${post.id}`
-                                    );
-                                  }}
-                                  className="w-full px-4 py-2 text-left text-sm text-[#262626] hover:bg-[#F5F5F5] first:rounded-t last:rounded-b"
-                                >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteNews(post.id);
-                                  }}
-                                  className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-[#F5F5F5] first:rounded-t last:rounded-b"
-                                >
-                                  삭제
-                                </button>
-                              </div>
-                            </>
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-[#D9D9D9] flex-shrink-0" />
                           )}
-                        </div>
-                      </div>
-                      <div className="mb-5">
-                        <h3 className="font-medium text-[#262626] mb-2">
-                          {post.title}
-                        </h3>
-                        <div className="relative">
-                          <p
-                            ref={(el) => {
-                              contentRefs.current[post.id] = el;
-                            }}
-                            className={`text-sm text-[#262626] whitespace-pre-line ${
-                              expandedPosts.has(post.id) ? "" : "line-clamp-5"
-                            }`}
-                          >
-                            {post.content}
-                          </p>
-                          {needsExpandButton.has(post.id) && (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleExpand(post.id)}
-                              className="mt-2 text-sm text-[#8C8C8C] cursor-pointer"
-                              aria-label={
-                                expandedPosts.has(post.id) ? "접기" : "더보기"
-                              }
-                            >
-                              {expandedPosts.has(post.id) ? "접기" : "더보기"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {/* 이미지가 있는 경우 */}
-                      {post.images && post.images.length > 0 && (
-                        <NewsImageCarousel
-                          images={post.images}
-                          title={post.title}
-                        />
-                      )}
-                      {/* URL이 있는 경우 */}
-                      {post.url && (
-                        <>
-                          <div className="w-full border-t border-[#D9D9D9] mb-3" />
-                          <div className="flex items-center gap-1.5">
-                            <InternetIcon />
-                            <span className="text-sm text-[#8C8C8C]">
-                              {post.url}
+                          <div className="flex flex-col gap-1 flex-1">
+                            <span className="text-sm font-semibold text-[#262626]">
+                              {post.farmName}
+                            </span>
+                            <span className="text-xs text-[#8C8C8C]">
+                              {post.date}
                             </span>
                           </div>
-                        </>
+                          {/* 더보기 버튼 */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenNewsMenuId(
+                                  openNewsMenuId === post.id ? null : post.id
+                                );
+                              }}
+                              className="p-1 cursor-pointer"
+                              aria-label="더보기"
+                            >
+                              <DotMenuIcon className="rotate-90" />
+                            </button>
+                            {/* 드롭다운 모달 */}
+                            {openNewsMenuId === post.id && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setOpenNewsMenuId(null)}
+                                  aria-label="메뉴 닫기"
+                                />
+                                <div className="absolute top-full right-0 mt-1 bg-white border border-[#D9D9D9] rounded shadow-lg z-20 min-w-[120px]">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenNewsMenuId(null);
+                                      router.push(
+                                        `/account/business/news/edit/${post.id}`
+                                      );
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-[#262626] hover:bg-[#F5F5F5] first:rounded-t last:rounded-b"
+                                  >
+                                    수정
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteNews(post.id);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-[#F5F5F5] first:rounded-t last:rounded-b"
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mb-5">
+                          <h3 className="font-medium text-[#262626] mb-2">
+                            {post.title}
+                          </h3>
+                          <div className="relative">
+                            <p
+                              ref={(el) => {
+                                contentRefs.current[post.id] = el;
+                              }}
+                              className={`text-sm text-[#262626] whitespace-pre-line ${
+                                expandedPosts.has(post.id) ? "" : "line-clamp-5"
+                              }`}
+                            >
+                              {post.content}
+                            </p>
+                            {needsExpandButton.has(post.id) && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleExpand(post.id)}
+                                className="mt-2 text-sm text-[#8C8C8C] cursor-pointer"
+                                aria-label={
+                                  expandedPosts.has(post.id) ? "접기" : "더보기"
+                                }
+                              >
+                                {expandedPosts.has(post.id) ? "접기" : "더보기"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* 이미지가 있는 경우 */}
+                        {post.images && post.images.length > 0 && (
+                          <NewsImageCarousel
+                            images={post.images}
+                            title={post.title}
+                          />
+                        )}
+                        {/* URL이 있는 경우 */}
+                        {post.url && (
+                          <>
+                            <div className="w-full border-t border-[#D9D9D9] mb-3" />
+                            <div className="flex items-center gap-1.5">
+                              <InternetIcon />
+                              <span className="text-sm text-[#8C8C8C]">
+                                {post.url}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {index < newsPosts.length - 1 && (
+                        <div className="h-[10px] bg-[#F7F7F7]" />
                       )}
                     </div>
-                    {index < newsPosts.length - 1 && (
-                      <div className="h-[10px] bg-[#F7F7F7]" />
+                  );
+                })}
+                {/* 무한 스크롤 감지용 요소 */}
+                {hasNextNewsPage && (
+                  <div
+                    ref={newsObserverTarget}
+                    className="h-10 flex items-center justify-center"
+                  >
+                    {isFetchingNextNewsPage && (
+                      <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
                     )}
                   </div>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         )}
@@ -571,16 +705,29 @@ const BusinessProfilePage = () => {
                   </div>
                 ))}
               </div>
-            ) : productsData && productsData.length > 0 ? (
-              <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
-                {productsData.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    hideCartButton={true}
-                  />
-                ))}
-              </div>
+            ) : allProductsData && allProductsData.length > 0 ? (
+              <>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-[30px]">
+                  {allProductsData.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      hideCartButton={true}
+                    />
+                  ))}
+                </div>
+                {/* 무한 스크롤 감지용 요소 */}
+                {hasNextProductsPage && (
+                  <div
+                    ref={productsObserverTarget}
+                    className="h-10 flex items-center justify-center"
+                  >
+                    {isFetchingNextProductsPage && (
+                      <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-8">
                 <p className="text-sm text-[#8C8C8C]">

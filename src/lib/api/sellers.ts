@@ -101,7 +101,10 @@ export interface FarmNews {
 
 export interface GetFarmNewsParams {
   farm_id: number;
+  page?: number;
 }
+
+export interface FarmNewsResponse extends PaginatedResponse<FarmNews> {}
 
 export const sellersApi = {
   getBestFarms: async (): Promise<BestFarm[]> => {
@@ -137,11 +140,74 @@ export const sellersApi = {
     return data;
   },
 
-  getFollowedFarms: async (): Promise<FollowedFarmsResponse> => {
-    const data = await apiClient.get<FollowedFarmsResponse>(
-      "/api/sellers/followed-farms"
-    );
-    return data;
+  getFollowedFarms: async (page?: number): Promise<FollowedFarmsResponse> => {
+    // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/sellers/followed-farms${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("팔로우한 농장 목록을 불러오는데 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
+        return jsonData.data as FollowedFarmsResponse;
+      }
+    }
+
+    // 직접 페이지네이션 형식인 경우
+    if (jsonData.count !== undefined && jsonData.results !== undefined) {
+      return jsonData as FollowedFarmsResponse;
+    }
+
+    // 기본값 반환
+    return {
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    };
   },
 
   getFarmProfile: async (
@@ -159,15 +225,76 @@ export const sellersApi = {
     return data;
   },
 
-  getFarmNews: async (params: GetFarmNewsParams): Promise<FarmNews[]> => {
+  getFarmNews: async (params: GetFarmNewsParams): Promise<FarmNewsResponse> => {
+    // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     const searchParams = new URLSearchParams();
     searchParams.append("farm_id", params.farm_id.toString());
+    if (params.page) {
+      searchParams.append("page", params.page.toString());
+    }
 
     const queryString = searchParams.toString();
-    const endpoint = `/api/sellers/news${queryString ? `?${queryString}` : ""}`;
+    const url = `${API_BASE_URL}/api/sellers/news${
+      queryString ? `?${queryString}` : ""
+    }`;
 
-    const data = await apiClient.get<FarmNews[]>(endpoint);
-    return data;
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("농장 소식을 불러오는데 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
+        return jsonData.data as FarmNewsResponse;
+      }
+    }
+
+    // 직접 페이지네이션 형식인 경우
+    if (jsonData.count !== undefined && jsonData.results !== undefined) {
+      return jsonData as FarmNewsResponse;
+    }
+
+    // 기본값 반환
+    return {
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    };
   },
 
   getMyProfile: async (): Promise<SellerProfile> => {
@@ -175,9 +302,74 @@ export const sellersApi = {
     return data;
   },
 
-  getMyFarmNews: async (): Promise<FarmNews[]> => {
-    const data = await apiClient.get<FarmNews[]>("/api/sellers/news");
-    return data;
+  getMyFarmNews: async (page?: number): Promise<FarmNewsResponse> => {
+    // API 응답이 직접 데이터 형식일 수 있으므로 직접 처리
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const searchParams = new URLSearchParams();
+    if (page) {
+      searchParams.append("page", page.toString());
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/sellers/news${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("내 소식을 불러오는데 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      // data가 배열인 경우 (페이지네이션 없음)
+      if (Array.isArray(jsonData.data)) {
+        return {
+          count: jsonData.data.length,
+          next: null,
+          previous: null,
+          results: jsonData.data,
+        };
+      }
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
+        return jsonData.data as FarmNewsResponse;
+      }
+    }
+
+    // 직접 페이지네이션 형식인 경우
+    if (jsonData.count !== undefined && jsonData.results !== undefined) {
+      return jsonData as FarmNewsResponse;
+    }
+
+    // 기본값 반환
+    return {
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    };
   },
 
   updateProfile: async (

@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import ChevronRightIcon from "@/assets/icon/ic_chevron_right_white_24.svg";
+import ChevronRightIcon20 from "@/assets/icon/ic_chevron_right_white_20.svg";
+import ChevronRightIcon24 from "@/assets/icon/ic_chevron_right_white_24.svg";
 import {
   useIncrementBannerClick,
   useIncrementBannerView,
@@ -195,7 +196,7 @@ const BannerCarousel = ({
       {/* 숫자 인디케이터 - 배너가 2개 이상일 때만 가운데 하단에 표시 */}
       {banners.length >= 2 && (
         <div className="absolute bottom-[14px] left-1/2 transform -translate-x-1/2 z-[5]">
-          <div className="backdrop-blur-md bg-black/40 border border-black/20 text-white text-sm px-3 py-1.5 rounded-full shadow-lg">
+          <div className="backdrop-blur-md bg-black/40 border border-black/20 text-white text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full shadow-lg">
             <span className="font-medium tracking-wide drop-shadow-sm">
               {currentIndex + 1}/{banners.length}
             </span>
@@ -208,10 +209,11 @@ const BannerCarousel = ({
         <button
           type="button"
           onClick={handlePrev}
-          className="absolute left-[20px] top-1/2 transform -translate-y-1/2 z-[5] w-10 h-10 backdrop-blur-md bg-black/40 border border-black/20 rounded-full flex items-center justify-center shadow-lg hover:bg-black/50 hover:scale-105 transition-all duration-200 group cursor-pointer"
+          className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 z-[5] backdrop-blur-md bg-black/40 border border-black/20 rounded-full flex items-center justify-center shadow-lg hover:bg-black/50 hover:scale-105 transition-all duration-200 group cursor-pointer p-1.5 sm:p-2"
           aria-label="이전 배너"
         >
-          <ChevronRightIcon className="rotate-180 group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
+          <ChevronRightIcon20 className="rotate-180 sm:hidden group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
+          <ChevronRightIcon24 className="hidden rotate-180 sm:block group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
         </button>
       )}
 
@@ -220,10 +222,11 @@ const BannerCarousel = ({
         <button
           type="button"
           onClick={handleNext}
-          className="absolute right-[20px] top-1/2 transform -translate-y-1/2 z-[5] w-10 h-10 backdrop-blur-md bg-black/40 border border-black/20 rounded-full flex items-center justify-center shadow-lg hover:bg-black/50 hover:scale-105 transition-all duration-200 group cursor-pointer"
+          className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 z-[5] backdrop-blur-md bg-black/40 border border-black/20 rounded-full flex items-center justify-center shadow-lg hover:bg-black/50 hover:scale-105 transition-all duration-200 group cursor-pointer p-1.5 sm:p-2"
           aria-label="다음 배너"
         >
-          <ChevronRightIcon className="group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
+          <ChevronRightIcon20 className="sm:hidden group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
+          <ChevronRightIcon24 className="hidden sm:block group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
         </button>
       )}
     </div>
