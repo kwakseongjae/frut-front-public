@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Prevent overscroll bounce on mobile browsers globally */
+html,
+body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
@@ -9,6 +17,12 @@
 .scrollbar-hide {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
+}
+
+/* Prevent overscroll bounce on mobile browsers */
+.overscroll-none {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Toast fade-in animation */
