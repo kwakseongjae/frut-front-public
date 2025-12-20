@@ -376,8 +376,43 @@ const WriteProductPage = () => {
     return processedContent;
   };
 
+  // 필수 필드 검증
+  const isFormValid = useMemo(() => {
+    // 1. 카테고리(소메뉴까지) 확인
+    if (!subCategoryId) {
+      return false;
+    }
+
+    // 2. 상품명 확인
+    if (!productName.trim()) {
+      return false;
+    }
+
+    // 3. 메인 이미지 확인
+    if (!mainImageFile) {
+      return false;
+    }
+
+    // 4. 옵션(적어도 한개) 확인
+    const hasValidOption = options.some(
+      (opt) => opt.name.trim() && opt.regularPrice > 0
+    );
+    if (!hasValidOption) {
+      return false;
+    }
+
+    // 5. 상품 설명 확인 (HTML 태그 제거 후 텍스트만 확인, 또는 이미지가 있으면 유효)
+    const textContent = editorContent.replace(/<[^>]*>/g, "").trim();
+    const hasImage = /<img[^>]*>/i.test(editorContent);
+    if (!textContent && !hasImage) {
+      return false;
+    }
+
+    return true;
+  }, [subCategoryId, productName, mainImageFile, options, editorContent]);
+
   const handleSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || !isFormValid) return;
 
     // 유효성 검사
     if (!subCategoryId) {
@@ -406,12 +441,28 @@ const WriteProductPage = () => {
 
     try {
       // 1. 메인 이미지 업로드
-      const mainImagePath = await uploadImageToGCS(mainImageFile);
+      let mainImagePath: string;
+      try {
+        mainImagePath = await uploadImageToGCS(mainImageFile);
+      } catch (error) {
+        console.error("메인 이미지 업로드 실패:", error);
+        alert("상품 이미지 업로드 실패");
+        setIsSubmitting(false);
+        return;
+      }
 
       // 2. 추가 이미지들 업로드
-      const additionalImagePaths = await Promise.all(
-        additionalImageFiles.map((file) => uploadImageToGCS(file))
-      );
+      let additionalImagePaths: string[];
+      try {
+        additionalImagePaths = await Promise.all(
+          additionalImageFiles.map((file) => uploadImageToGCS(file))
+        );
+      } catch (error) {
+        console.error("추가 이미지 업로드 실패:", error);
+        alert("상품 이미지 업로드 실패");
+        setIsSubmitting(false);
+        return;
+      }
 
       // 3. 이미지 경로 배열 생성 (메인 이미지가 첫 번째)
       const imagePaths = [mainImagePath, ...additionalImagePaths];
@@ -472,9 +523,17 @@ const WriteProductPage = () => {
         : undefined;
 
       // 6. detail_content의 이미지를 GCS에 업로드하고 경로로 교체
-      const processedDetailContent = editorContent
-        ? await processDetailContentImages(editorContent)
-        : undefined;
+      let processedDetailContent: string | undefined;
+      try {
+        processedDetailContent = editorContent
+          ? await processDetailContentImages(editorContent)
+          : undefined;
+      } catch (error) {
+        console.error("상품 설명 이미지 업로드 실패:", error);
+        alert("상품 이미지 업로드 실패");
+        setIsSubmitting(false);
+        return;
+      }
 
       // 7. 상품 등록 API 호출
       await createProductMutation.mutateAsync({
@@ -529,7 +588,7 @@ const WriteProductPage = () => {
         {/* 카테고리 설정 */}
         <div className="flex flex-col gap-[10px]">
           <div className="text-base font-medium text-[#262626]">
-            카테고리 설정
+            카테고리 설정 <span className="text-[#F73535]">*</span>
           </div>
           <div className="flex flex-col gap-2">
             {/* 대메뉴 */}
@@ -680,7 +739,7 @@ const WriteProductPage = () => {
             htmlFor={productNameId}
             className="text-base font-medium text-[#262626]"
           >
-            상품명
+            상품명 <span className="text-[#F73535]">*</span>
           </label>
           <div className="w-full border border-[#D9D9D9] p-3">
             <input
@@ -697,7 +756,7 @@ const WriteProductPage = () => {
         {/* 메인 이미지 */}
         <div className="flex flex-col gap-[10px]">
           <div className="text-base font-medium text-[#262626]">
-            메인 이미지
+            메인 이미지 <span className="text-[#F73535]">*</span>
           </div>
           <div className="w-full border border-[#D9D9D9] p-4 min-h-[200px] flex flex-col items-center justify-center gap-2 relative">
             {mainImage ? (
@@ -807,7 +866,7 @@ const WriteProductPage = () => {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <div className="text-base font-medium text-[#262626]">
-              옵션 설정 <span className="text-red-500">*</span>
+              옵션 설정 <span className="text-[#F73535]">*</span>
             </div>
             <div className="flex items-center gap-1">
               <InfoCircleGreyIcon />
@@ -1133,7 +1192,9 @@ const WriteProductPage = () => {
 
         {/* 상품 설명 */}
         <div className="flex flex-col gap-[10px]">
-          <div className="text-base font-medium text-[#262626]">상품 설명</div>
+          <div className="text-base font-medium text-[#262626]">
+            상품 설명 <span className="text-[#F73535]">*</span>
+          </div>
           <TiptapEditor
             content={editorContent}
             onChange={setEditorContent}
@@ -1147,7 +1208,7 @@ const WriteProductPage = () => {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isFormValid}
           className="w-full py-4 bg-[#133A1B] text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="상품등록"
         >

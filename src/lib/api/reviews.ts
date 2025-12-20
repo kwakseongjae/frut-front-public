@@ -79,6 +79,9 @@ export interface WrittenReview {
   id: number;
   user_name: string;
   product_name: string;
+  farm_name?: string;
+  option_name?: string;
+  quantity?: number;
   rating: number;
   review_content: string;
   image_url: string | null;
@@ -230,5 +233,8 @@ export const reviewsApi = {
     );
     return data;
   },
-};
 
+  deleteReview: async (reviewId: number): Promise<void> => {
+    await apiClient.delete(`/api/reviews/${reviewId}`);
+  },
+};

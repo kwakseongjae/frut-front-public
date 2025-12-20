@@ -81,6 +81,7 @@ const EditProductPage = () => {
   const [manufactureMonth, setManufactureMonth] = useState<string>("");
   const [manufactureDay, setManufactureDay] = useState<string>("");
   const [editorContent, setEditorContent] = useState("");
+  const [isEditorContentLoaded, setIsEditorContentLoaded] = useState(false);
 
   // 카테고리 데이터 조회
   const { data: categoriesData, isLoading: isCategoriesLoading } =
@@ -88,7 +89,8 @@ const EditProductPage = () => {
 
   // 상품 데이터 조회
   const numericProductId = parseInt(productId, 10);
-  const { data: productDetail } = useProductDetail(numericProductId);
+  const { data: productDetail, isLoading: isLoadingProductDetail } =
+    useProductDetail(numericProductId);
 
   // 상품 수정 mutation
   const updateProductMutation = useUpdateProduct();
@@ -288,12 +290,14 @@ const EditProductPage = () => {
 
       // 상품 설명 설정 - detail_content의 GCS 경로를 이미지 URL로 변환
       const loadDetailContent = async () => {
+        setIsEditorContentLoaded(false);
         const detailContent = productDetail.detail_content || "";
         const processedDetailContent = await processDetailContentForEditor(
           detailContent,
           productDetail.images || []
         );
         setEditorContent(processedDetailContent);
+        setIsEditorContentLoaded(true);
       };
       loadDetailContent();
     }
@@ -597,8 +601,63 @@ const EditProductPage = () => {
     return processedContent;
   };
 
+  // 필수 필드 검증
+  const isFormValid = useMemo(() => {
+    // 데이터 로딩 중이면 비활성화
+    if (isLoadingProductDetail || isCategoriesLoading) {
+      return false;
+    }
+
+    // 상품 설명이 아직 로드되지 않았으면 비활성화
+    if (!isEditorContentLoaded && productDetail) {
+      return false;
+    }
+
+    // 1. 카테고리(소메뉴까지) 확인
+    if (!subCategoryId) {
+      return false;
+    }
+
+    // 2. 상품명 확인
+    if (!productName.trim()) {
+      return false;
+    }
+
+    // 3. 메인 이미지 확인 (기존 이미지 또는 새로 선택한 파일)
+    if (!mainImage) {
+      return false;
+    }
+
+    // 4. 옵션(적어도 한개) 확인
+    const hasValidOption = options.some(
+      (opt) => opt.name.trim() && opt.regularPrice > 0
+    );
+    if (!hasValidOption) {
+      return false;
+    }
+
+    // 5. 상품 설명 확인 (HTML 태그 제거 후 텍스트만 확인, 또는 이미지가 있으면 유효)
+    const textContent = editorContent.replace(/<[^>]*>/g, "").trim();
+    const hasImage = /<img[^>]*>/i.test(editorContent);
+    if (!textContent && !hasImage) {
+      return false;
+    }
+
+    return true;
+  }, [
+    isLoadingProductDetail,
+    isCategoriesLoading,
+    isEditorContentLoaded,
+    productDetail,
+    subCategoryId,
+    productName,
+    mainImage,
+    options,
+    editorContent,
+  ]);
+
   const handleSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || !isFormValid) return;
 
     // 유효성 검사
     if (!subCategoryId) {
@@ -632,8 +691,15 @@ const EditProductPage = () => {
       // 메인 이미지 처리
       if (mainImageFile) {
         // 새로 선택한 파일이면 업로드
-        const mainImagePath = await uploadImageToGCS(mainImageFile);
-        imagePaths.push(mainImagePath);
+        try {
+          const mainImagePath = await uploadImageToGCS(mainImageFile);
+          imagePaths.push(mainImagePath);
+        } catch (error) {
+          console.error("메인 이미지 업로드 실패:", error);
+          alert("상품 이미지 업로드 실패");
+          setIsSubmitting(false);
+          return;
+        }
       } else if (mainImage && mainImageGcsPath) {
         // 기존 이미지의 경우 gcs_path 사용
         imagePaths.push(mainImageGcsPath);
@@ -650,8 +716,15 @@ const EditProductPage = () => {
         // 새로 추가한 파일이 있는 경우
         if (file) {
           // 새로 선택한 파일이면 업로드
-          const imagePath = await uploadImageToGCS(file);
-          imagePaths.push(imagePath);
+          try {
+            const imagePath = await uploadImageToGCS(file);
+            imagePaths.push(imagePath);
+          } catch (error) {
+            console.error("추가 이미지 업로드 실패:", error);
+            alert("상품 이미지 업로드 실패");
+            setIsSubmitting(false);
+            return;
+          }
         }
         // 기존 이미지인 경우 (gcs_path가 있고 빈 문자열이 아닌 경우)
         else if (gcsPath && gcsPath.trim() !== "") {
@@ -717,9 +790,17 @@ const EditProductPage = () => {
         : undefined;
 
       // 5. detail_content의 이미지를 GCS에 업로드하고 경로로 교체
-      const processedDetailContent = editorContent
-        ? await processDetailContentImages(editorContent)
-        : undefined;
+      let processedDetailContent: string | undefined;
+      try {
+        processedDetailContent = editorContent
+          ? await processDetailContentImages(editorContent)
+          : undefined;
+      } catch (error) {
+        console.error("상품 설명 이미지 업로드 실패:", error);
+        alert("상품 이미지 업로드 실패");
+        setIsSubmitting(false);
+        return;
+      }
 
       // 6. 상품 수정 API 호출
       await updateProductMutation.mutateAsync({
@@ -781,7 +862,7 @@ const EditProductPage = () => {
         {/* 카테고리 설정 */}
         <div className="flex flex-col gap-[10px]">
           <div className="text-base font-medium text-[#262626]">
-            카테고리 설정
+            카테고리 설정 <span className="text-[#F73535]">*</span>
           </div>
           <div className="flex flex-col gap-2">
             {/* 대메뉴 */}
@@ -932,7 +1013,7 @@ const EditProductPage = () => {
             htmlFor={productNameId}
             className="text-base font-medium text-[#262626]"
           >
-            상품명
+            상품명 <span className="text-[#F73535]">*</span>
           </label>
           <div className="w-full border border-[#D9D9D9] p-3">
             <input
@@ -949,7 +1030,7 @@ const EditProductPage = () => {
         {/* 메인 이미지 */}
         <div className="flex flex-col gap-[10px]">
           <div className="text-base font-medium text-[#262626]">
-            메인 이미지
+            메인 이미지 <span className="text-[#F73535]">*</span>
           </div>
           <div className="w-full border border-[#D9D9D9] p-4 min-h-[200px] flex flex-col items-center justify-center gap-2 relative">
             {mainImage ? (
@@ -1059,7 +1140,7 @@ const EditProductPage = () => {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <div className="text-base font-medium text-[#262626]">
-              옵션 설정 <span className="text-red-500">*</span>
+              옵션 설정 <span className="text-[#F73535]">*</span>
             </div>
             <div className="flex items-center gap-1">
               <InfoCircleGreyIcon />
@@ -1370,7 +1451,9 @@ const EditProductPage = () => {
 
         {/* 상품 설명 */}
         <div className="flex flex-col gap-[10px]">
-          <div className="text-base font-medium text-[#262626]">상품 설명</div>
+          <div className="text-base font-medium text-[#262626]">
+            상품 설명 <span className="text-[#F73535]">*</span>
+          </div>
           <TiptapEditor
             content={editorContent}
             onChange={setEditorContent}
@@ -1384,7 +1467,7 @@ const EditProductPage = () => {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isFormValid}
           className="w-full py-4 bg-[#133A1B] text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="상품 수정"
         >

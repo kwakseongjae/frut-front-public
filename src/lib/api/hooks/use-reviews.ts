@@ -80,3 +80,16 @@ export const useCreateReviewReply = () => {
   });
 };
 
+export const useDeleteReview = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reviewId: number) => reviewsApi.deleteReview(reviewId),
+    onSuccess: () => {
+      // 작성한 리뷰 목록 갱신
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.reviews.written(),
+      });
+    },
+  });
+};

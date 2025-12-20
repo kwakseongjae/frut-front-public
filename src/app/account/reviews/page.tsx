@@ -5,10 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import BentRightDownIcon from "@/assets/icon/ic_bent_right_down_black_24.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
+import DotMenuIcon from "@/assets/icon/ic_dot_menu_grey_14.svg";
 import EmptyStarIcon from "@/assets/icon/ic_star_grey_18.svg";
 import StarIcon from "@/assets/icon/ic_start_lightgreen_18.svg";
 import { fruits } from "@/assets/images/dummy";
+import ReviewImageViewer from "@/components/ReviewImageViewer";
 import {
+  useDeleteReview,
   useReviewableItems,
   useWrittenReviews,
 } from "@/lib/api/hooks/use-reviews";
@@ -38,6 +41,12 @@ const ReviewsPageContent = () => {
     useReviewableItems();
   const { data: writtenReviewsData, isLoading: isLoadingWritten } =
     useWrittenReviews();
+  const deleteReviewMutation = useDeleteReview();
+
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   // URL 파라미터 변경 시 탭 업데이트
   useEffect(() => {
@@ -130,6 +139,31 @@ const ReviewsPageContent = () => {
 
   const handleWriteReview = (orderItemId: number) => {
     router.push(`/account/reviews/write/${orderItemId}`);
+  };
+
+  const handleImageClick = (images: string[], index: number) => {
+    setViewerImages(images);
+    setViewerInitialIndex(index);
+    setIsViewerOpen(true);
+  };
+
+  const handleDeleteReview = async (reviewId: number) => {
+    const confirmed = window.confirm("정말 삭제하시겠습니까?");
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteReviewMutation.mutateAsync(reviewId);
+      setOpenMenuId(null);
+    } catch (error) {
+      console.error("후기 삭제 실패:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "후기 삭제에 실패했습니다. 다시 시도해주세요."
+      );
+    }
   };
 
   return (
@@ -253,114 +287,170 @@ const ReviewsPageContent = () => {
                 <p className="font-medium text-[#8C8C8C]">로딩 중...</p>
               </div>
             ) : writtenReviews.length > 0 ? (
-              <div className="flex flex-col">
-                {writtenReviews.map((review, index) => (
-                  <div key={review.id}>
-                    <div className="px-5 py-4">
-                      {/* 사용자명 */}
-                      <div className="mb-2">
-                        <span className="text-sm font-medium text-[#262626]">
-                          {review.user_name}
-                        </span>
-                      </div>
+              <>
+                {writtenReviews.map((review, index) => {
+                  const reviewImages = review.image_url
+                    ? [getImageUrl(review.image_url) || ""]
+                    : [];
 
-                      {/* 별점과 날짜 */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-1">
-                          {renderStars(review.rating)}
-                        </div>
-                        <span className="text-xs text-[#8C8C8C]">
-                          {formatDate(review.created_at)}
-                        </span>
-                      </div>
-
-                      {/* 상품명 */}
-                      <div className="mb-3">
-                        <span className="text-sm text-[#8C8C8C]">
-                          {review.product_name}
-                        </span>
-                      </div>
-
-                      {/* 상품 이미지와 상세 정보 */}
-                      <div className="flex gap-4 mb-3">
-                        {/* 상품 이미지 */}
-                        {review.image_url && (
-                          <div className="w-20 h-20 bg-[#D9D9D9] rounded flex-shrink-0 relative overflow-hidden">
-                            <Image
-                              src={getImageUrl(review.image_url) || ""}
-                              alt={review.product_name}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                        )}
-
-                        {/* 상품 상세 정보 */}
-                        <div className="flex flex-col gap-1 flex-1">
-                          {review.reply && (
+                  return (
+                    <div key={review.id}>
+                      <div className="px-5 py-4 relative">
+                        {/* 더보기 버튼 */}
+                        <div className="absolute top-4 right-5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(
+                                openMenuId === review.id ? null : review.id
+                              );
+                            }}
+                            className="p-1 cursor-pointer"
+                            aria-label="더보기"
+                          >
+                            <DotMenuIcon className="rotate-90" />
+                          </button>
+                          {/* 드롭다운 메뉴 */}
+                          {openMenuId === review.id && (
                             <>
-                              <span className="text-xs text-[#8C8C8C]">
-                                {review.reply.farm_name}
-                              </span>
-                              <span className="text-xs text-[#8C8C8C]">
-                                {review.product_name}
-                              </span>
+                              <button
+                                type="button"
+                                className="fixed inset-0 z-10"
+                                onClick={() => setOpenMenuId(null)}
+                                aria-label="메뉴 닫기"
+                              />
+                              <div className="absolute top-full right-0 mt-1 bg-white border border-[#D9D9D9] rounded shadow-lg z-20 min-w-[120px]">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteReview(review.id);
+                                  }}
+                                  className="w-full px-4 py-2 text-sm text-[#F73535] text-left hover:bg-[#F5F5F5] cursor-pointer"
+                                  aria-label="삭제"
+                                >
+                                  삭제
+                                </button>
+                              </div>
                             </>
                           )}
                         </div>
-                      </div>
 
-                      {/* 후기 내용 */}
-                      <p className="text-sm text-[#262626] leading-relaxed mb-3 whitespace-pre-line">
-                        {review.review_content}
-                      </p>
-
-                      {/* 답변 (있는 경우) */}
-                      {review.reply && (
-                        <div className="mt-3">
-                          <div className="flex items-start gap-2 mb-2">
-                            {/* 휘어있는 아이콘 */}
-                            <div className="flex-shrink-0 mt-0.5">
-                              <BentRightDownIcon />
-                            </div>
-                            {/* 프로필 이미지와 농장명 */}
-                            <div className="flex items-center gap-2">
-                              {/* 농장 아바타 */}
-                              <div className="w-8 h-8 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden">
-                                {review.reply.farm_image ? (
-                                  <Image
-                                    src={
-                                      getImageUrl(review.reply.farm_image) || ""
-                                    }
-                                    alt={review.reply.farm_name}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-[#D9D9D9]" />
-                                )}
-                              </div>
-                              {/* 농장명 */}
-                              <span className="text-sm font-medium text-[#262626]">
-                                {review.reply.farm_name}
-                              </span>
-                            </div>
+                        {/* 리뷰 헤더 */}
+                        <div className="flex items-center justify-between mb-2 pr-8">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-[#262626]">
+                              {review.user_name}
+                            </span>
                           </div>
-                          {/* 답변 내용 (회색 배경 박스) */}
-                          <div className="ml-[32px] bg-[#F5F5F5] rounded p-3">
-                            <p className="text-sm text-[#262626] leading-relaxed whitespace-pre-line">
-                              {review.reply.reply_content}
-                            </p>
-                          </div>
+                          <span className="text-xs text-[#8C8C8C]">
+                            {formatDate(review.created_at)}
+                          </span>
                         </div>
+
+                        {/* 별점 */}
+                        <div className="flex items-center gap-1 mb-2">
+                          {renderStars(review.rating)}
+                        </div>
+
+                        {/* 구매 상품 정보 */}
+                        <div className="mb-2 flex flex-col gap-1">
+                          {review.farm_name && (
+                            <span className="text-xs text-[#8C8C8C]">
+                              {review.farm_name}
+                            </span>
+                          )}
+                          <span className="text-xs text-[#8C8C8C]">
+                            {review.product_name}
+                          </span>
+                          {review.option_name && (
+                            <span className="text-xs text-[#8C8C8C]">
+                              {review.option_name}
+                              {review.quantity ? ` x ${review.quantity}` : ""}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 리뷰 내용 */}
+                        <p className="text-sm text-[#262626] mb-3 leading-relaxed whitespace-pre-line">
+                          {review.review_content}
+                        </p>
+
+                        {/* 리뷰 이미지 */}
+                        {reviewImages.length > 0 && (
+                          <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-3">
+                            {reviewImages.map((image, imgIndex) => (
+                              <button
+                                key={`${review.id}-${imgIndex}`}
+                                type="button"
+                                onClick={() =>
+                                  handleImageClick(reviewImages, imgIndex)
+                                }
+                                className="w-20 h-20 rounded relative overflow-hidden flex-shrink-0 cursor-pointer aspect-square"
+                                aria-label={`리뷰 이미지 ${imgIndex + 1} 보기`}
+                              >
+                                <Image
+                                  src={image}
+                                  alt={`리뷰 이미지 ${imgIndex + 1}`}
+                                  fill
+                                  className="object-cover"
+                                  sizes="80px"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 판매자 답변 */}
+                        {review.reply && (
+                          <div className="mt-3">
+                            <div className="flex items-start gap-2 mb-2">
+                              {/* 휘어있는 아이콘 */}
+                              <div className="flex-shrink-0 mt-0.5">
+                                <BentRightDownIcon />
+                              </div>
+                              {/* 프로필 이미지와 농장명 */}
+                              <div className="flex items-center gap-2">
+                                {/* 농장 아바타 */}
+                                <div className="w-8 h-8 rounded-full bg-[#D9D9D9] flex-shrink-0 relative overflow-hidden">
+                                  {review.reply.farm_image ? (
+                                    <Image
+                                      src={
+                                        getImageUrl(review.reply.farm_image) ||
+                                        ""
+                                      }
+                                      alt={review.reply.farm_name || "농장"}
+                                      fill
+                                      className="object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-[#D9D9D9]" />
+                                  )}
+                                </div>
+                                {/* 농장명 */}
+                                <span className="text-sm font-medium text-[#262626]">
+                                  {review.reply.farm_name}
+                                </span>
+                              </div>
+                            </div>
+                            {/* 답변 내용 (회색 배경 박스) */}
+                            <div className="ml-[32px] bg-[#F5F5F5] rounded p-3">
+                              <p className="text-sm text-[#262626] leading-relaxed whitespace-pre-line">
+                                {review.reply.reply_content}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {/* 구분선 */}
+                      {index < writtenReviews.length - 1 && (
+                        <div className="h-[10px] bg-[#F7F7F7]" />
                       )}
                     </div>
-                    {index < writtenReviews.length - 1 && (
-                      <div className="h-[10px] bg-[#F7F7F7]" />
-                    )}
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
+              </>
             ) : (
               <div className="px-5 py-20 flex flex-col items-center justify-center text-center">
                 <p className="font-medium text-[#8C8C8C]">
@@ -371,6 +461,14 @@ const ReviewsPageContent = () => {
           </div>
         )}
       </div>
+
+      {/* 전체화면 이미지 뷰어 */}
+      <ReviewImageViewer
+        images={viewerImages}
+        initialIndex={viewerInitialIndex}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+      />
     </div>
   );
 };

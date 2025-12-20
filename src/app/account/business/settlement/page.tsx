@@ -63,9 +63,9 @@ const SettlementPage = () => {
         <div className="w-7" />
       </div>
 
-      <div className="px-5 py-4 flex flex-col gap-3">
+      <div className="px-5 py-4 flex flex-col">
         {/* 정산 기간 섹션 */}
-        <div className="px-4 py-4 bg-white border border-[#E5E5E5] rounded">
+        <div className="px-4 py-4 bg-white border border-[#E5E5E5]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <CalendarIcon />
@@ -125,8 +125,11 @@ const SettlementPage = () => {
           </div>
         </div>
 
+        {/* 구분선 */}
+        <div className="h-[10px] bg-[#F7F7F7] -mx-5 my-4" />
+
         {/* 총 매출액 섹션 */}
-        <div className="px-4 py-4 bg-white border border-[#E5E5E5] rounded">
+        <div className="px-4 py-4 bg-white border border-[#E5E5E5]">
           <div className="flex items-center gap-2 mb-3">
             <TrendUpIcon />
             <h2 className="text-base font-semibold text-[#262626]">
@@ -148,48 +151,56 @@ const SettlementPage = () => {
           )}
         </div>
 
+        {/* 구분선 */}
+        <div className="h-[10px] bg-[#F7F7F7] -mx-5 my-4" />
+
         {/* 공제 내역 섹션 */}
-        <div className="px-4 py-4 bg-white border border-[#E5E5E5] rounded">
+        <div className="px-4 py-4 bg-[#F9F9F9] border border-[#D9D9D9]">
           <h2 className="text-base font-semibold text-[#262626] mb-4">
             공제 내역
           </h2>
           {isSettlementLoading ? (
             <div className="flex flex-col gap-3">
-              <div className="h-12 bg-[#D9D9D9] rounded animate-pulse" />
-              <div className="h-12 bg-[#D9D9D9] rounded animate-pulse" />
-              <div className="h-12 bg-[#D9D9D9] rounded animate-pulse" />
+              <div className="h-12 bg-white animate-pulse" />
+              <div className="h-12 bg-white animate-pulse" />
+              <div className="h-12 bg-white animate-pulse" />
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-start justify-between">
-                <div>
+            <div className="flex flex-col">
+              {/* 플랫폼 수수료 */}
+              <div className="flex items-start justify-between pb-3">
+                <div className="flex flex-col">
                   <p className="text-sm font-medium text-[#262626] mb-1">
                     플랫폼 수수료
                   </p>
-                  {platformFeeRate > 0 && (
-                    <p className="text-xs text-[#8C8C8C]">{platformFeeRate}%</p>
-                  )}
+                  <p className="text-xs text-[#8C8C8C]">
+                    {platformFeeRate > 0 ? `${platformFeeRate}%` : "8%"}
+                  </p>
                 </div>
                 <p className="text-sm font-medium text-[#262626]">
                   -{commissionAmount.toLocaleString()}원
                 </p>
               </div>
-              <div className="flex items-start justify-between">
-                <div>
+              {/* 구분선 */}
+              <div className="border-t border-[#E5E5E5] mb-3 -mx-4" />
+              {/* 부가세 */}
+              <div className="flex items-start justify-between pb-3">
+                <div className="flex flex-col">
                   <p className="text-sm font-medium text-[#262626] mb-1">
                     부가세
                   </p>
-                  {vatRate > 0 && (
-                    <p className="text-xs text-[#8C8C8C]">
-                      수수료의 {vatRate}%
-                    </p>
-                  )}
+                  <p className="text-xs text-[#8C8C8C]">
+                    {vatRate > 0 ? `수수료의 ${vatRate}%` : "수수료의 10%"}
+                  </p>
                 </div>
                 <p className="text-sm font-medium text-[#262626]">
                   -{vatAmount.toLocaleString()}원
                 </p>
               </div>
-              <div className="border-t border-[#E5E5E5] pt-3 mt-1">
+              {/* 구분선 */}
+              <div className="border-t border-[#E5E5E5] -mx-4 my-3" />
+              {/* 총 공제액 */}
+              <div className="bg-white p-3 border border-[#D9D9D9]">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-[#262626]">
                     총 공제액
@@ -202,6 +213,9 @@ const SettlementPage = () => {
             </div>
           )}
         </div>
+
+        {/* 구분선 */}
+        <div className="h-[10px] bg-[#F7F7F7] -mx-5 my-4" />
 
         {/* 정산 예정금액 섹션 */}
         <div className="px-4 py-4 bg-white border border-[#E5E5E5] rounded">
@@ -220,8 +234,11 @@ const SettlementPage = () => {
           )}
         </div>
 
+        {/* 구분선 */}
+        <div className="h-[10px] bg-[#F7F7F7] -mx-5 my-4" />
+
         {/* 정산 계산식 섹션 */}
-        <div className="px-4 py-4 bg-white border border-[#E5E5E5] rounded">
+        <div className="px-4 py-4 bg-white border border-[#E5E5E5]">
           <h2 className="text-base font-semibold text-[#262626] mb-4">
             정산 계산식
           </h2>
@@ -241,18 +258,14 @@ const SettlementPage = () => {
                 </p>
               </div>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-[#262626]">
-                  - 플랫폼 수수료
-                  {platformFeeRate > 0 && ` (${platformFeeRate}%)`}
-                </p>
+                <p className="text-sm text-[#262626]">- 플랫폼 수수료 (8%)</p>
                 <p className="text-sm font-medium text-[#262626]">
                   -{commissionAmount.toLocaleString()}원
                 </p>
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[#262626]">
-                  - 부가세
-                  {vatRate > 0 && ` (수수료의 ${vatRate}%)`}
+                  - 부가세 (수수료의 10%)
                 </p>
                 <p className="text-sm font-medium text-[#262626]">
                   -{vatAmount.toLocaleString()}원
@@ -272,8 +285,11 @@ const SettlementPage = () => {
           )}
         </div>
 
+        {/* 여백 */}
+        <div className="h-4" />
+
         {/* 카드 수수료 안내 섹션 */}
-        <div className="px-4 py-4 bg-[#E6F2FF] border border-[#E5E5E5] rounded">
+        <div className="px-4 py-4 bg-[#E6F2FF]">
           <div className="flex items-start gap-2">
             <CardIcon />
             <div>

@@ -103,14 +103,12 @@ const RefundRequestPage = () => {
   // reason_type 매핑
   const getReasonType = (
     reason: string
-  ): "PRODUCT_DEFECT" | "WRONG_PRODUCT" | "FRESHNESS_ISSUE" | "OTHER" => {
+  ): "PRODUCT_DEFECT" | "WRONG_PRODUCT" | "OTHER" => {
     switch (reason) {
       case "defect":
         return "PRODUCT_DEFECT";
       case "different":
         return "WRONG_PRODUCT";
-      case "freshness":
-        return "FRESHNESS_ISSUE";
       case "other":
         return "OTHER";
       default:
@@ -164,6 +162,8 @@ const RefundRequestPage = () => {
           refund_account: refundAccount.trim(),
         };
         await createRefundMutation.mutateAsync(refundRequest);
+        // 환불 완료 페이지로 이동
+        router.push("/account/refund/complete?type=refund");
       } else if (applicationType === "return") {
         // 반품 신청
         const redeliveryRequest: RedeliveryRequest = {
@@ -174,10 +174,9 @@ const RefundRequestPage = () => {
             uploadedImages.length > 0 ? uploadedImages : undefined,
         };
         await createRedeliveryMutation.mutateAsync(redeliveryRequest);
+        // 반품 완료 페이지로 이동
+        router.push("/account/refund/complete?type=return");
       }
-
-      alert("환불/반품 신청이 완료되었습니다.");
-      router.back();
     } catch (error) {
       console.error("환불/반품 신청 실패:", error);
       alert("환불/반품 신청에 실패했습니다. 다시 시도해주세요.");
@@ -422,16 +421,6 @@ const RefundRequestPage = () => {
                   <span className="text-sm text-[#262626]">
                     주문 상품과 다름
                   </span>
-                </label>
-                <label className="flex items-center gap-3 p-3 bg-[#F5F5F5] border border-[#D9D9D9] cursor-pointer">
-                  <input
-                    type="radio"
-                    name="applicationReason"
-                    value="freshness"
-                    checked={applicationReason === "freshness"}
-                    onChange={(e) => setApplicationReason(e.target.value)}
-                  />
-                  <span className="text-sm text-[#262626]">신선도 문제</span>
                 </label>
                 <label className="flex items-center gap-3 p-3 bg-[#F5F5F5] border border-[#D9D9D9] cursor-pointer">
                   <input

@@ -156,7 +156,7 @@ const RefundPage = () => {
           </div>
           <ul className="flex flex-col gap-2 list-disc list-inside ml-4">
             <li className="text-sm text-[#8C8C8C]">
-              상품 도착 후 2일 이내 가능합니다
+              상품 도착 후 48시간 이내 가능합니다
             </li>
           </ul>
         </div>

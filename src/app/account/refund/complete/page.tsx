@@ -1,23 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import CheckIcon from "@/assets/icon/ic_circle_green_check_white_60.svg";
 
-export default function SignUpCompletePage() {
+const RefundCompleteContent = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const type = searchParams.get("type"); // "refund" or "return"
 
-  // 뒤로가기 시 회원가입 페이지로 가지 않도록 처리
+  // 뒤로가기 시 환불/반품 신청 페이지로 가지 않도록 처리
   useEffect(() => {
     const handlePopState = () => {
-      // 회원가입 완료 페이지에서 뒤로가기 시 홈으로 이동
+      // 환불/반품 완료 페이지에서 뒤로가기 시 홈으로 이동
       router.replace("/");
     };
 
     window.addEventListener("popstate", handlePopState);
 
-    // 브라우저 히스토리에 현재 페이지를 추가하여 회원가입 페이지로 돌아가지 않도록 함
+    // 브라우저 히스토리에 현재 페이지를 추가하여 환불/반품 신청 페이지로 돌아가지 않도록 함
     window.history.pushState(null, "", window.location.href);
 
     return () => {
@@ -34,6 +36,14 @@ export default function SignUpCompletePage() {
     router.push("/");
   };
 
+  // 환불 또는 반품에 따른 메시지
+  const titleMessage =
+    type === "refund"
+      ? "환불 요청이 정상적으로 접수되었습니다."
+      : "반품 요청이 정상적으로 접수되었습니다.";
+
+  const pageTitle = type === "refund" ? "환불 신청 완료" : "반품 신청 완료";
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       {/* 헤더 영역 */}
@@ -47,9 +57,7 @@ export default function SignUpCompletePage() {
           <ChevronLeftIcon />
         </button>
         <div>
-          <h1 className="text-lg font-semibold text-[#262626]">
-            회원가입 완료
-          </h1>
+          <h1 className="text-lg font-semibold text-[#262626]">{pageTitle}</h1>
         </div>
         <div className="w-7" />
       </div>
@@ -58,16 +66,18 @@ export default function SignUpCompletePage() {
       <div className="flex-1 flex flex-col items-center justify-center px-5 py-12">
         {/* 성공 아이콘 */}
         <div className="relative mb-8">
-          <CheckIcon className="w-[60px] h-[60px]" aria-label="회원가입 완료" />
+          <CheckIcon className="w-[60px] h-[60px]" aria-label={pageTitle} />
         </div>
 
         {/* 완료 메시지 */}
         <div className="text-center mb-12">
           <h2 className="text-[22px] font-medium text-[#262626] mb-2">
-            회원가입이 완료되었습니다
+            {titleMessage}
           </h2>
-          <p className="text-sm font-normal text-[#262626]">
-            환영합니다! 이제 서비스를 이용하실 수 있습니다
+          <p className="text-sm font-normal text-[#262626] leading-relaxed">
+            판매자가 요청 내용을 확인 후 처리 예정입니다.
+            <br />
+            처리 결과는 알림으로 안내드리겠습니다.
           </p>
         </div>
       </div>
@@ -85,4 +95,22 @@ export default function SignUpCompletePage() {
       </div>
     </div>
   );
-}
+};
+
+const RefundCompletePage = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col min-h-screen bg-white">
+          <div className="flex items-center justify-center py-20">
+            <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+          </div>
+        </div>
+      }
+    >
+      <RefundCompleteContent />
+    </Suspense>
+  );
+};
+
+export default RefundCompletePage;

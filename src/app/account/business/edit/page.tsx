@@ -14,13 +14,11 @@ import { uploadApi } from "@/lib/api/upload";
 const BusinessProfileEditPage = () => {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const farmNameId = useId();
   const farmLocationId = useId();
   const introductionId = useId();
   const { data: profileData, isLoading } = useMySellerProfile();
   const updateProfileMutation = useUpdateSellerProfile();
 
-  const [farmName, setFarmName] = useState("");
   const [farmLocation, setFarmLocation] = useState("");
   const [introduction, setIntroduction] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -30,7 +28,6 @@ const BusinessProfileEditPage = () => {
   // 프로필 데이터로 폼 초기화
   useEffect(() => {
     if (profileData) {
-      setFarmName(profileData.farm_name || "");
       setFarmLocation(profileData.location || "");
       setIntroduction(profileData.farm_description || "");
       setProfileImage(profileData.farm_image_url || null);
@@ -79,12 +76,12 @@ const BusinessProfileEditPage = () => {
     if (isSubmitting) return;
 
     // 유효성 검사
-    if (!farmName.trim()) {
-      alert("농장명을 입력해주세요.");
-      return;
-    }
     if (!farmLocation.trim()) {
       alert("농장위치를 입력해주세요.");
+      return;
+    }
+    if (introduction.length > 50) {
+      alert("소개글은 최대 50자까지 입력 가능합니다.");
       return;
     }
 
@@ -101,9 +98,9 @@ const BusinessProfileEditPage = () => {
         farmImagePath = profileData.farm_image;
       }
 
-      // 프로필 업데이트 API 호출
+      // 프로필 업데이트 API 호출 (농장명은 기존 값 사용)
       await updateProfileMutation.mutateAsync({
-        farm_name: farmName.trim(),
+        farm_name: profileData?.farm_name || "",
         location: farmLocation.trim(),
         farm_description: introduction.trim(),
         farm_image: farmImagePath,
@@ -191,26 +188,6 @@ const BusinessProfileEditPage = () => {
 
       {/* 입력 필드 영역 */}
       <div className="flex flex-col px-5 gap-6">
-        {/* 농장명 */}
-        <div className="flex flex-col gap-[10px]">
-          <label
-            htmlFor={farmNameId}
-            className="text-sm font-medium text-[#595959]"
-          >
-            농장명
-          </label>
-          <div className="w-full border border-[#D9D9D9] p-3">
-            <input
-              type="text"
-              id={farmNameId}
-              value={farmName}
-              onChange={(e) => setFarmName(e.target.value)}
-              placeholder="농장명을 입력해 주세요"
-              className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
-            />
-          </div>
-        </div>
-
         {/* 농장위치 */}
         <div className="flex flex-col gap-[10px]">
           <label
@@ -243,11 +220,22 @@ const BusinessProfileEditPage = () => {
             <textarea
               id={introductionId}
               value={introduction}
-              onChange={(e) => setIntroduction(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 50) {
+                  setIntroduction(value);
+                }
+              }}
               placeholder="내용을 입력해 주세요"
               rows={4}
+              maxLength={50}
               className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B] resize-none"
             />
+          </div>
+          <div className="flex justify-end">
+            <span className="text-xs text-[#8C8C8C]">
+              {introduction.length}/50
+            </span>
           </div>
         </div>
       </div>

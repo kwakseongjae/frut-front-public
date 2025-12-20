@@ -49,15 +49,15 @@ const BusinessProfileApplyPage = () => {
   const [farmIntro, setFarmIntro] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 검증 에러 메시지
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [accountNumberError, setAccountNumberError] = useState<string | null>(
+    null
+  );
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   // 필수 제출 서류
   const [requiredDocuments, setRequiredDocuments] = useState<DocumentItem[]>([
-    {
-      id: "online-sales-report",
-      name: "통신판매업 신고증",
-      icon: <DocumentIcon />,
-      file: null,
-      isSubmitted: false,
-    },
     {
       id: "business-registration",
       name: "사업자 등록증",
@@ -79,17 +79,17 @@ const BusinessProfileApplyPage = () => {
       file: null,
       isSubmitted: false,
     },
-    {
-      id: "farm-profile-photo",
-      name: "농장 프로필 사진",
-      icon: <CameraIcon />,
-      file: null,
-      isSubmitted: false,
-    },
   ]);
 
   // 선택 제출 서류
   const [optionalDocuments, setOptionalDocuments] = useState<DocumentItem[]>([
+    {
+      id: "online-sales-report",
+      name: "통신판매업 신고증",
+      icon: <DocumentIcon />,
+      file: null,
+      isSubmitted: false,
+    },
     {
       id: "gap-certificate",
       name: "GAP 인증서",
@@ -108,6 +108,13 @@ const BusinessProfileApplyPage = () => {
       id: "haccp-certificate",
       name: "HACCP 인증서",
       icon: <DocumentIcon />,
+      file: null,
+      isSubmitted: false,
+    },
+    {
+      id: "farm-profile-photo",
+      name: "농장 프로필 사진",
+      icon: <CameraIcon />,
       file: null,
       isSubmitted: false,
     },
@@ -170,13 +177,7 @@ const BusinessProfileApplyPage = () => {
   const categorizeFiles = () => {
     if (!applicationData?.files) return { required: [], optional: [] };
 
-    const requiredKinds = [
-      "사업자등록증",
-      "통신판매업신고증",
-      "대표자신분증사본",
-      "통장사본",
-      "농장프로필사진",
-    ];
+    const requiredKinds = ["사업자등록증", "대표자신분증사본", "통장사본"];
 
     const required: typeof applicationData.files = [];
     const optional: typeof applicationData.files = [];
@@ -355,6 +356,40 @@ const BusinessProfileApplyPage = () => {
     return signedUrlData.gcs_path;
   };
 
+  // 휴대폰 번호 검증
+  const validatePhone = (value: string): string | null => {
+    if (value.trim() === "") return null; // 빈 값은 필수 필드 검증에서 처리
+    if (!/^[0-9]+$/.test(value)) {
+      return "숫자만 입력 가능합니다.";
+    }
+    if (value.length > 11) {
+      return "휴대폰 번호는 11자 이하여야 합니다.";
+    }
+    return null;
+  };
+
+  // 계좌번호 검증
+  const validateAccountNumber = (value: string): string | null => {
+    if (value.trim() === "") return null; // 빈 값은 필수 필드 검증에서 처리
+    if (!/^[0-9]+$/.test(value)) {
+      return "숫자만 입력 가능합니다.";
+    }
+    if (value.length > 11) {
+      return "계좌번호는 11자 이하여야 합니다.";
+    }
+    return null;
+  };
+
+  // 이메일 검증
+  const validateEmail = (value: string): string | null => {
+    if (value.trim() === "") return null; // 빈 값은 필수 필드 검증에서 처리
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value)) {
+      return "올바른 이메일 형식을 입력해주세요.";
+    }
+    return null;
+  };
+
   // 필수 필드 검증
   const isFormValid = useMemo(() => {
     // 기본 정보 필수 필드
@@ -367,6 +402,10 @@ const BusinessProfileApplyPage = () => {
       farmName.trim() !== "" &&
       farmIntro.trim() !== "";
 
+    // 검증 에러가 없는지 확인
+    const hasNoValidationErrors =
+      phoneError === null && accountNumberError === null && emailError === null;
+
     // 필수 서류 모두 제출되었는지 확인
     const hasAllRequiredDocuments = requiredDocuments.every(
       (doc) => doc.isSubmitted && doc.file !== null
@@ -376,7 +415,12 @@ const BusinessProfileApplyPage = () => {
     const hasRequiredAgreements =
       agreements.sellerTerms && agreements.commissionPolicy;
 
-    return hasBasicInfo && hasAllRequiredDocuments && hasRequiredAgreements;
+    return (
+      hasBasicInfo &&
+      hasNoValidationErrors &&
+      hasAllRequiredDocuments &&
+      hasRequiredAgreements
+    );
   }, [
     phone,
     email,
@@ -385,6 +429,9 @@ const BusinessProfileApplyPage = () => {
     accountHolder,
     farmName,
     farmIntro,
+    phoneError,
+    accountNumberError,
+    emailError,
     requiredDocuments,
     agreements,
   ]);
@@ -567,16 +614,32 @@ const BusinessProfileApplyPage = () => {
                     >
                       휴대폰 번호 <span className="text-[#F73535]">*</span>
                     </label>
-                    <div className="w-full border border-[#D9D9D9] p-3">
+                    <div
+                      className={`w-full border p-3 ${
+                        phoneError ? "border-red-500" : "border-[#D9D9D9]"
+                      }`}
+                    >
                       <input
                         type="tel"
                         id={phoneId}
-                        placeholder="010-0000-0000"
+                        placeholder="- 없이 번호만 입력해주세요"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setPhone(value);
+                          const error = validatePhone(value);
+                          setPhoneError(error);
+                        }}
+                        onBlur={() => {
+                          const error = validatePhone(phone);
+                          setPhoneError(error);
+                        }}
                         className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
                       />
                     </div>
+                    {phoneError && (
+                      <p className="text-sm text-red-500">{phoneError}</p>
+                    )}
                   </div>
 
                   {/* 이메일 */}
@@ -587,16 +650,32 @@ const BusinessProfileApplyPage = () => {
                     >
                       이메일 <span className="text-[#F73535]">*</span>
                     </label>
-                    <div className="w-full border border-[#D9D9D9] p-3">
+                    <div
+                      className={`w-full border p-3 ${
+                        emailError ? "border-red-500" : "border-[#D9D9D9]"
+                      }`}
+                    >
                       <input
                         type="email"
                         id={emailId}
                         placeholder="example@email.com"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setEmail(value);
+                          const error = validateEmail(value);
+                          setEmailError(error);
+                        }}
+                        onBlur={() => {
+                          const error = validateEmail(email);
+                          setEmailError(error);
+                        }}
                         className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
                       />
                     </div>
+                    {emailError && (
+                      <p className="text-sm text-red-500">{emailError}</p>
+                    )}
                   </div>
 
                   {/* 은행명 */}
@@ -627,16 +706,36 @@ const BusinessProfileApplyPage = () => {
                     >
                       계좌번호 <span className="text-[#F73535]">*</span>
                     </label>
-                    <div className="w-full border border-[#D9D9D9] p-3">
+                    <div
+                      className={`w-full border p-3 ${
+                        accountNumberError
+                          ? "border-red-500"
+                          : "border-[#D9D9D9]"
+                      }`}
+                    >
                       <input
                         type="text"
                         id={accountId}
                         placeholder="계좌번호를 입력해주세요"
                         value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setAccountNumber(value);
+                          const error = validateAccountNumber(value);
+                          setAccountNumberError(error);
+                        }}
+                        onBlur={() => {
+                          const error = validateAccountNumber(accountNumber);
+                          setAccountNumberError(error);
+                        }}
                         className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
                       />
                     </div>
+                    {accountNumberError && (
+                      <p className="text-sm text-red-500">
+                        {accountNumberError}
+                      </p>
+                    )}
                   </div>
 
                   {/* 예금주 */}

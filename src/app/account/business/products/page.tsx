@@ -209,7 +209,7 @@ const ProductManagementPage = () => {
                 : "text-[#8C8C8C]"
             }`}
           >
-            품절
+            판매중지
           </span>
         </button>
       </div>
@@ -271,10 +271,10 @@ const ProductManagementPage = () => {
                         className="w-full px-4 py-3 text-left text-sm text-[#262626] hover:bg-[#F5F5F5] transition-colors"
                       >
                         {product.status === "ACTIVE"
-                          ? "품절처리"
+                          ? "판매중지"
                           : product.status === "OUT_OF_STOCK"
-                          ? "판매 전환"
-                          : "판매 전환"}
+                          ? "판매재개"
+                          : "판매재개"}
                       </button>
                       <div className="border-t border-[#E5E5E5]" />
                       <button
@@ -302,7 +302,7 @@ const ProductManagementPage = () => {
                     {product.status === "ACTIVE"
                       ? "판매중"
                       : product.status === "OUT_OF_STOCK"
-                      ? "품절"
+                      ? "판매중지"
                       : "판매중지"}
                   </div>
                   <span className="text-xs text-[#8C8C8C]">
@@ -324,6 +324,23 @@ const ProductManagementPage = () => {
                       />
                     ) : (
                       <div className="w-full h-full bg-[#D9D9D9] rounded" />
+                    )}
+                    {/* 판매중지 오버레이 */}
+                    {product.status === "OUT_OF_STOCK" && (
+                      <div className="absolute inset-0 bg-gray-900/60 flex items-center justify-center rounded">
+                        {/* 슬래시 라인 */}
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            backgroundImage:
+                              "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.3) 10px, rgba(255,255,255,0.3) 20px)",
+                          }}
+                        />
+                        {/* 판매중지 텍스트 */}
+                        <span className="relative text-xs font-semibold text-white drop-shadow-lg z-10">
+                          판매중지
+                        </span>
+                      </div>
                     )}
                   </div>
 
