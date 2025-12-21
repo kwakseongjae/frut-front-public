@@ -793,33 +793,37 @@ const BusinessProfilePage = () => {
             >
               프로필 수정
             </button>
-            <button
-              type="button"
-              className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
-              onClick={handleProductManagement}
-            >
-              상품관리
-            </button>
-            <button
-              type="button"
-              className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
-              onClick={handleSettlement}
-            >
-              정산관리
-            </button>
+            {user?.user_type === "SELLER" && (
+              <>
+                <button
+                  type="button"
+                  className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
+                  onClick={handleProductManagement}
+                >
+                  상품관리
+                </button>
+                <button
+                  type="button"
+                  className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
+                  onClick={handleSettlement}
+                >
+                  정산관리
+                </button>
+                <button
+                  type="button"
+                  className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
+                  onClick={handleOrderManagement}
+                >
+                  주문관리
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
               onClick={handleWriteNews}
             >
               소식작성
-            </button>
-            <button
-              type="button"
-              className="px-5 py-4 text-left text-base font-medium text-[#262626] hover:bg-[#F5F5F5] active:bg-[#F5F5F5] transition-colors rounded"
-              onClick={handleOrderManagement}
-            >
-              주문관리
             </button>
           </div>
         </div>

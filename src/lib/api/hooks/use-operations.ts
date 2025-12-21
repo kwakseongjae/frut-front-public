@@ -6,6 +6,8 @@ const operationsQueryKeys = {
   notices: () => [...operationsQueryKeys.all, "notices"] as const,
   noticeDetail: (id: number) =>
     [...operationsQueryKeys.notices(), "detail", id] as const,
+  popups: (date?: string) =>
+    [...operationsQueryKeys.all, "popups", date || "all"] as const,
 };
 
 export const useInfiniteNotices = () => {
@@ -77,5 +79,13 @@ export const useFAQDetail = (id: number, enabled: boolean) => {
     queryKey: [...operationsQueryKeys.all, "faqs", "detail", id],
     queryFn: () => operationsApi.getFAQDetail(id),
     enabled: enabled && !!id,
+  });
+};
+
+export const usePopups = (date?: string) => {
+  return useQuery({
+    queryKey: operationsQueryKeys.popups(date),
+    queryFn: () => operationsApi.getPopups({ date }),
+    enabled: !!date, // date가 있을 때만 쿼리 실행
   });
 };

@@ -1,7 +1,8 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import CameraIcon from "@/assets/icon/ic_camera_black_18.svg";
 import CheckboxGreenIcon from "@/assets/icon/ic_checkbox_green_18.svg";
 import CheckboxGreyIcon from "@/assets/icon/ic_checkbox_grey_18.svg";
@@ -18,7 +19,7 @@ import {
   useSellerApplication,
   useUpdateApplication,
 } from "@/lib/api/hooks/use-best-farms";
-import { sellersApi } from "@/lib/api/sellers";
+import { sellersApi, sellersQueryKeys } from "@/lib/api/sellers";
 import { uploadApi } from "@/lib/api/upload";
 
 interface DocumentItem {
@@ -31,6 +32,7 @@ interface DocumentItem {
 
 const BusinessProfileApplyPage = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const phoneId = useId();
   const emailId = useId();
   const accountId = useId();
@@ -135,12 +137,26 @@ const BusinessProfileApplyPage = () => {
     privacyPolicy: false,
   });
 
-  // 탭 상태
+  // 신청 현황 조회
+  const {
+    data: applicationData,
+    isLoading: isLoadingApplication,
+    refetch: refetchApplication,
+  } = useSellerApplication();
+
+  // 신청 내역이 있는지 확인
+  const hasApplication =
+    applicationData !== null && applicationData !== undefined;
+
+  // 탭 상태: 신청 내역이 있으면 "status", 없으면 "write"
   const [activeTab, setActiveTab] = useState<"write" | "status">("write");
 
-  // 신청 현황 조회 (신청 현황 탭일 때만 조회)
-  const { data: applicationData, isLoading: isLoadingApplication } =
-    useSellerApplication();
+  // 신청 내역이 있을 때는 신청 내역 탭으로 자동 전환 (초기 진입 시)
+  useEffect(() => {
+    if (hasApplication && !isLoadingApplication) {
+      setActiveTab("status");
+    }
+  }, [hasApplication, isLoadingApplication]);
   const updateApplicationMutation = useUpdateApplication();
 
   // 반려된 서류 재제출을 위한 상태
@@ -535,6 +551,12 @@ const BusinessProfileApplyPage = () => {
       // 4. API 호출
       await sellersApi.submitApplication(formData);
 
+      // 5. 신청 정보 쿼리 캐시 무효화 및 재조회
+      queryClient.invalidateQueries({
+        queryKey: sellersQueryKeys.application(),
+      });
+      await refetchApplication();
+
       alert("판매자 등록 신청이 완료되었습니다.");
       setActiveTab("status");
     } catch (error) {
@@ -572,20 +594,22 @@ const BusinessProfileApplyPage = () => {
 
         {/* 탭 네비게이션 */}
         <div className="flex border-b border-[#E5E5E5]">
-          <button
-            type="button"
-            onClick={() => setActiveTab("write")}
-            className={`flex-1 py-3 text-sm relative ${
-              activeTab === "write"
-                ? "font-semibold text-[#133A1B]"
-                : "text-[#8C8C8C]"
-            }`}
-          >
-            신청서 작성
-            {activeTab === "write" && (
-              <div className="absolute bottom-0 left-5 right-5 h-0.5 bg-[#133A1B]" />
-            )}
-          </button>
+          {!hasApplication && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("write")}
+              className={`flex-1 py-3 text-sm relative ${
+                activeTab === "write"
+                  ? "font-semibold text-[#133A1B]"
+                  : "text-[#8C8C8C]"
+              }`}
+            >
+              신청서 작성
+              {activeTab === "write" && (
+                <div className="absolute bottom-0 left-5 right-5 h-0.5 bg-[#133A1B]" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab("status")}

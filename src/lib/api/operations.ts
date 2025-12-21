@@ -47,6 +47,24 @@ export interface GetFAQsParams {
   page?: number;
 }
 
+export interface Popup {
+  id: number;
+  popup_title: string;
+  popup_content: string;
+  popup_image: string;
+  popup_url: string | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PopupsResponse extends PaginatedResponse<Popup> {}
+
+export interface GetPopupsParams {
+  date?: string; // YYYY-MM-DD 형식
+}
+
 export const operationsApi = {
   getBannerAds: async (params?: GetBannerAdsParams): Promise<BannerAd[]> => {
     const searchParams = new URLSearchParams();
@@ -290,5 +308,64 @@ export const operationsApi = {
     }
 
     throw new Error("FAQ 상세 데이터 형식이 올바르지 않습니다.");
+  },
+  getPopups: async (params?: GetPopupsParams): Promise<PopupsResponse> => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const searchParams = new URLSearchParams();
+    if (params?.date) {
+      searchParams.append("date", params.date);
+    }
+    const queryString = searchParams.toString();
+    const url = `${API_BASE_URL}/api/operations/popups${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("팝업 목록을 불러오는데 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      // data가 페이지네이션 형식인 경우
+      if (
+        jsonData.data.count !== undefined &&
+        jsonData.data.results !== undefined
+      ) {
+        return jsonData.data as PopupsResponse;
+      }
+    }
+
+    // 직접 페이지네이션 형식인 경우
+    if (jsonData.count !== undefined && jsonData.results !== undefined) {
+      return jsonData as PopupsResponse;
+    }
+
+    // 기본값 반환
+    return {
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    };
   },
 };
