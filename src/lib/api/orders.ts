@@ -126,6 +126,7 @@ export interface OrderListItem {
   product_name: string;
   farm_name: string;
   product_main_image: string | null;
+  option_name?: string;
   quantity: number;
   total_price: number;
   delivery_fee: number;
@@ -463,7 +464,7 @@ export const ordersApi = {
         jsonData.data.count !== undefined &&
         jsonData.data.results !== undefined
       ) {
-      return jsonData.data as SellerOrderListResponse;
+        return jsonData.data as SellerOrderListResponse;
       }
     }
 
@@ -572,6 +573,54 @@ export const ordersApi = {
       await response.json();
     return jsonData;
   },
+  getClaimHistory: async (): Promise<ClaimHistoryItem[]> => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/orders/claim-history`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("클레임 이력을 불러오는데 실패했습니다.");
+    }
+
+    const jsonData: ClaimHistoryResponse = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      return jsonData.data;
+    }
+
+    // 직접 배열 형식인 경우
+    if (Array.isArray(jsonData)) {
+      return jsonData;
+    }
+
+    return [];
+  },
+  getCancelDetail: async (
+    orderItemId: number
+  ): Promise<CancelDetailResponse["data"]> => {
+    const data = await apiClient.get<CancelDetailResponse["data"]>(
+      `/api/orders/cancel/${orderItemId}`
+    );
+    return data;
+  },
 };
 
 export interface RefundableItemDetail {
@@ -599,6 +648,64 @@ export type RefundReasonType =
   | "WRONG_PRODUCT"
   | "FRESHNESS_ISSUE"
   | "OTHER";
+
+export interface ClaimHistoryItem {
+  order_item_id: number;
+  order_number: string;
+  product_name: string;
+  product_main_image: string | null;
+  quantity: number;
+  total_price: number;
+  point_used: number;
+  coupon_discount_amount: number;
+  paid_amount: number;
+  delivered_at: string | null;
+  refund_deadline: string | null;
+  can_refund: boolean;
+  can_redeliver: boolean;
+  payment_id: number;
+  refund_id: number | null;
+  redelivery_id: number | null;
+  status: "CANCELLED" | "REFUND" | "REDELIVERY";
+  cancelled_at: string | null;
+  farm_name: string;
+  option_name: string;
+}
+
+export interface ClaimHistoryResponse {
+  success: boolean;
+  data: ClaimHistoryItem[];
+  message: string;
+}
+
+export interface CancelDetail {
+  id: number;
+  order_number: string;
+  pay_method: string;
+  pay_method_display: string;
+  farm_name: string;
+  product_name: string;
+  option_name: string;
+  quantity: number;
+  product_main_image: string | null;
+  total_price: number;
+  point_used: number;
+  coupon_discount_amount: number;
+  delivery_fee: number;
+  paid_amount: number;
+  refund_amount: number;
+  cancel_reason: string;
+  cancel_reason_display: string;
+  cancel_reason_detail: string | null;
+  cancelled_at: string;
+  cancel_receipt_url: string | null;
+}
+
+export interface CancelDetailResponse {
+  success: boolean;
+  data: CancelDetail;
+  message: string;
+}
 
 export interface RefundRequest {
   payment_id: number;

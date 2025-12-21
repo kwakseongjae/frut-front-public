@@ -7,6 +7,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  type CancelDetail,
+  type ClaimHistoryItem,
   type OrderCreateRequest,
   ordersApi,
   type RedeliveryRequest,
@@ -206,5 +208,20 @@ export const useUpdateSellerOrderStatus = () => {
         queryKey: [...queryKeys.orders.all, "seller"],
       });
     },
+  });
+};
+
+export const useClaimHistory = () => {
+  return useQuery<ClaimHistoryItem[]>({
+    queryKey: [...queryKeys.orders.all, "claim-history"],
+    queryFn: () => ordersApi.getClaimHistory(),
+  });
+};
+
+export const useCancelDetail = (orderItemId: number) => {
+  return useQuery<CancelDetail>({
+    queryKey: [...queryKeys.orders.all, "cancel-detail", orderItemId],
+    queryFn: () => ordersApi.getCancelDetail(orderItemId),
+    enabled: !!orderItemId,
   });
 };

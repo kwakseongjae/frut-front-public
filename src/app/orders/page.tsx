@@ -6,20 +6,16 @@ import ChevronRightIcon from "@/assets/icon/ic_chevron_right_grey_17.svg";
 import { fruits } from "@/assets/images/dummy";
 import OrderItem from "@/components/OrderItem";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { useInfiniteOrders } from "@/lib/api/hooks/use-order";
+import { useClaimHistory, useInfiniteOrders } from "@/lib/api/hooks/use-order";
 
-type OrderStatus =
-  | "상품접수"
-  | "상품준비중"
-  | "배송시작"
-  | "배송완료"
-  | "취소완료";
+type OrderStatus = "주문접수" | "주문확인" | "배송중" | "배송완료" | "취소완료";
 
 interface OrderItemData {
   id: number;
   name: string;
   image: string;
-  option: string;
+  optionName: string | null;
+  quantity: number;
   price: number;
   farmName: string;
 }
@@ -43,6 +39,12 @@ interface Order {
     coupon_discount_amount: number;
     paid_amount: number;
   };
+  claimInfo?: {
+    refundId: number | null;
+    redeliveryId: number | null;
+    status: "CANCELLED" | "REFUND" | "REDELIVERY" | null;
+    cancelledAt: string | null;
+  };
 }
 
 const OrdersPage = () => {
@@ -55,6 +57,7 @@ const OrdersPage = () => {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteOrders();
+  const { data: claimHistory } = useClaimHistory();
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // 모든 페이지의 데이터를 평탄화
@@ -65,16 +68,39 @@ const OrdersPage = () => {
       .filter((order) => order !== undefined && order !== null);
   }, [ordersData]);
 
+  // 클레임 이력을 order_item_id로 매핑
+  const claimHistoryMap = useMemo(() => {
+    if (!claimHistory) return new Map();
+    const map = new Map<
+      number,
+      {
+        refundId: number | null;
+        redeliveryId: number | null;
+        status: "CANCELLED" | "REFUND" | "REDELIVERY" | null;
+        cancelledAt: string | null;
+      }
+    >();
+    claimHistory.forEach((claim) => {
+      map.set(claim.order_item_id, {
+        refundId: claim.refund_id,
+        redeliveryId: claim.redelivery_id,
+        status: claim.status,
+        cancelledAt: claim.cancelled_at,
+      });
+    });
+    return map;
+  }, [claimHistory]);
+
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
-      case "상품접수":
+      case "주문접수":
         return "text-[#EB8C34]";
-      case "상품준비중":
+      case "주문확인":
         return "text-[#EB8C34]";
-      case "배송시작":
+      case "배송중":
         return "text-[#8BC53F]";
       case "배송완료":
-        return "text-[#F73535]";
+        return "text-[#133A1B]";
       case "취소완료":
         return "text-[#595959]";
       default:
@@ -101,6 +127,18 @@ const OrdersPage = () => {
 
   const handleWriteReview = (orderId: number) => {
     router.push("/account/reviews");
+  };
+
+  const handleRefundDetail = (refundId: number) => {
+    router.push(`/account/refund/${refundId}`);
+  };
+
+  const handleRedeliveryDetail = (redeliveryId: number) => {
+    router.push(`/account/refund/${redeliveryId}`);
+  };
+
+  const handleCancelDetail = (orderId: number) => {
+    router.push(`/orders/${orderId}/cancel-detail`);
   };
 
   // Intersection Observer로 무한 스크롤 구현
@@ -142,17 +180,17 @@ const OrdersPage = () => {
       // 상태 변환
       let displayStatus: OrderStatus;
       if (status === "PENDING") {
-        displayStatus = "상품접수";
+        displayStatus = "주문접수";
       } else if (status === "CONFIRMED") {
-        displayStatus = "상품준비중";
+        displayStatus = "주문확인";
       } else if (status === "SHIPPED") {
-        displayStatus = "배송시작";
+        displayStatus = "배송중";
       } else if (status === "DELIVERED") {
         displayStatus = "배송완료";
       } else if (status === "CANCELLED") {
         displayStatus = "취소완료";
       } else {
-        displayStatus = "상품접수"; // 기본값
+        displayStatus = "주문접수"; // 기본값
       }
 
       // 날짜 포맷팅 (YYYY-MM-DD -> YYYY.MM.DD)
@@ -170,6 +208,9 @@ const OrdersPage = () => {
         return `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/${imageUrl}`;
       };
 
+      // 클레임 이력 조회
+      const claimInfo = claimHistoryMap.get(item.id);
+
       return {
         id: item.id,
         date: formattedDate,
@@ -181,7 +222,8 @@ const OrdersPage = () => {
             name: item.product_name,
             image:
               getImageUrl(item.product_main_image) || fruits[0]?.image || "",
-            option: `${item.quantity}개`,
+            optionName: item.option_name || null,
+            quantity: item.quantity,
             price: item.total_price,
             farmName: item.farm_name,
           },
@@ -194,17 +236,25 @@ const OrdersPage = () => {
           coupon_discount_amount: item.coupon_discount_amount,
           paid_amount: item.paid_amount,
         },
+        claimInfo: claimInfo
+          ? {
+              refundId: claimInfo.refundId,
+              redeliveryId: claimInfo.redeliveryId,
+              status: claimInfo.status,
+              cancelledAt: claimInfo.cancelledAt,
+            }
+          : undefined,
       };
     });
-  }, [allOrders]);
+  }, [allOrders, claimHistoryMap]);
 
   // 상태별로 필터링
   const ongoingOrders = useMemo(() => {
     return transformedOrders.filter(
       (order) =>
-        order.status === "상품접수" ||
-        order.status === "상품준비중" ||
-        order.status === "배송시작"
+        order.status === "주문접수" ||
+        order.status === "주문확인" ||
+        order.status === "배송중"
     );
   }, [transformedOrders]);
 
@@ -349,25 +399,106 @@ const OrdersPage = () => {
                       </div>
                     )}
 
+                    {/* 취소 완료 상태: 취소 상세 버튼 */}
+                    {order.originalStatus === "CANCELLED" &&
+                      order.claimInfo &&
+                      order.claimInfo.status === "CANCELLED" &&
+                      order.claimInfo.cancelledAt && (
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={() => handleCancelDetail(order.id)}
+                            className="w-full py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                            aria-label="취소 상세"
+                          >
+                            취소 상세
+                          </button>
+                        </div>
+                      )}
+
                     {/* 환불/반품 신청 및 후기 작성 버튼 (배송완료 상태일 때만 표시) */}
                     {order.originalStatus === "DELIVERED" && (
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleRefundExchange(order.id)}
-                          className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
-                          aria-label="환불 / 반품 신청"
-                        >
-                          환불 / 반품 신청
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleWriteReview(order.id)}
-                          className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
-                          aria-label="후기작성"
-                        >
-                          후기작성
-                        </button>
+                      <div className="mt-3">
+                        {/* 클레임 이력이 있는 경우: 취소/환불/반품 상세 버튼 */}
+                        {order.claimInfo ? (
+                          <>
+                            {/* 취소한 주문: 취소 상세 버튼 */}
+                            {order.claimInfo.status === "CANCELLED" &&
+                              order.claimInfo.cancelledAt && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelDetail(order.id)}
+                                  className="w-full py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                                  aria-label="취소 상세"
+                                >
+                                  취소 상세
+                                </button>
+                              )}
+                            {/* 환불한 주문: 환불 상세 버튼 */}
+                            {order.claimInfo.refundId !== null &&
+                              order.claimInfo.refundId !== undefined && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (
+                                      order.claimInfo?.refundId !== null &&
+                                      order.claimInfo?.refundId !== undefined
+                                    ) {
+                                      handleRefundDetail(
+                                        order.claimInfo.refundId
+                                      );
+                                    }
+                                  }}
+                                  className="w-full py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                                  aria-label="환불 상세"
+                                >
+                                  환불 상세
+                                </button>
+                              )}
+                            {/* 반품한 주문: 반품 상세 버튼 */}
+                            {order.claimInfo.redeliveryId !== null &&
+                              order.claimInfo.redeliveryId !== undefined && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (
+                                      order.claimInfo?.redeliveryId !== null &&
+                                      order.claimInfo?.redeliveryId !==
+                                        undefined
+                                    ) {
+                                      handleRedeliveryDetail(
+                                        order.claimInfo.redeliveryId
+                                      );
+                                    }
+                                  }}
+                                  className="w-full py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                                  aria-label="반품 상세"
+                                >
+                                  반품 상세
+                                </button>
+                              )}
+                          </>
+                        ) : (
+                          /* 클레임 이력이 없는 경우: 기존 버튼 표시 */
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRefundExchange(order.id)}
+                              className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                              aria-label="환불 / 반품 신청"
+                            >
+                              환불 / 반품 신청
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleWriteReview(order.id)}
+                              className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
+                              aria-label="후기작성"
+                            >
+                              후기작성
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
