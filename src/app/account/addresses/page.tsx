@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
@@ -10,17 +10,10 @@ import {
 	useUpdateAddress,
 } from "@/lib/api/hooks/use-users";
 
-export default function AddressesPage() {
+const AddressesPageContent = () => {
 	const router = useRouter();
-	const [isFromOrdersheet, setIsFromOrdersheet] = useState(false);
-
-	useEffect(() => {
-		// 결제 페이지에서 왔는지 확인
-		if (typeof window !== "undefined") {
-			const referrer = document.referrer;
-			setIsFromOrdersheet(referrer.includes("/ordersheet"));
-		}
-	}, []);
+	const searchParams = useSearchParams();
+	const isFromOrdersheet = searchParams.get("from") === "ordersheet";
 	const { data: addresses, isLoading } = useAddresses();
 	const deleteAddressMutation = useDeleteAddress();
 	const updateAddressMutation = useUpdateAddress();
@@ -110,7 +103,7 @@ export default function AddressesPage() {
 					<h1 className="text-lg font-semibold text-[#262626]">배송지 변경</h1>
 					<button
 						type="button"
-						onClick={() => router.push("/account/addresses/new")}
+						onClick={() => router.push(`/account/addresses/new${isFromOrdersheet ? "?from=ordersheet" : ""}`)}
 						className="text-sm text-[#262626] font-medium"
 					>
 						배송지 추가
@@ -130,7 +123,7 @@ export default function AddressesPage() {
 							</p>
 							<button
 								type="button"
-								onClick={() => router.push("/account/addresses/new")}
+								onClick={() => router.push(`/account/addresses/new${isFromOrdersheet ? "?from=ordersheet" : ""}`)}
 								className="px-6 py-3 bg-[#133A1B] text-white font-semibold text-sm rounded"
 							>
 								배송지 추가하기
@@ -196,7 +189,7 @@ export default function AddressesPage() {
 												type="button"
 												onClick={(e) => {
 													e.stopPropagation();
-													router.push(`/account/addresses/${address.id}/edit`);
+													router.push(`/account/addresses/${address.id}/edit${isFromOrdersheet ? "?from=ordersheet" : ""}`);
 												}}
 												className="flex-1 py-2 border border-[#D9D9D9] text-sm text-[#262626] font-medium rounded hover:bg-[#F7F7F7] transition-colors"
 											>
@@ -226,9 +219,10 @@ export default function AddressesPage() {
 								}
 
 								return (
-									<button
+									<div
 										key={address.id}
-										type="button"
+										role="button"
+										tabIndex={0}
 										onClick={() =>
 											handleCardClick(address.id, address.is_default)
 										}
@@ -241,10 +235,10 @@ export default function AddressesPage() {
 										aria-label={`${address.recipient_name} 배송지 선택`}
 										className={`w-full text-left border border-[#133A1B] rounded-lg p-4 bg-white transition-colors ${
 											isSelected ? "bg-[#F7F7F7]" : ""
-										} cursor-pointer`}
+										} cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#133A1B] focus:ring-offset-2`}
 									>
 										{cardContent}
-									</button>
+									</div>
 								);
 							})}
 						</div>
@@ -271,7 +265,24 @@ export default function AddressesPage() {
 			</div>
 		</ProtectedRoute>
 	);
+};
+
+export default function AddressesPage() {
+	return (
+		<Suspense fallback={
+			<ProtectedRoute>
+				<div className="flex flex-col h-screen bg-white">
+					<div className="flex items-center justify-center flex-1">
+						<p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+					</div>
+				</div>
+			</ProtectedRoute>
+		}>
+			<AddressesPageContent />
+		</Suspense>
+	);
 }
+
 
 
 

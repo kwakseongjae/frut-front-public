@@ -944,7 +944,9 @@ export default function OrderSheetPage() {
               {defaultAddress && (
                 <button
                   type="button"
-                  onClick={() => router.push("/account/addresses")}
+                  onClick={() =>
+                    router.push("/account/addresses?from=ordersheet")
+                  }
                   className="text-sm text-[#262626]"
                 >
                   변경하기
@@ -983,7 +985,9 @@ export default function OrderSheetPage() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => router.push("/account/addresses/new")}
+                  onClick={() =>
+                    router.push("/account/addresses/new?from=ordersheet")
+                  }
                   className="w-full py-3 border border-[#133A1B] text-[#133A1B] font-semibold text-sm rounded"
                 >
                   배송지 등록하기

@@ -1,17 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { use, useEffect, useId, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, use, useEffect, useId, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAddresses, useUpdateAddress } from "@/lib/api/hooks/use-users";
 
-export default function EditAddressPage({
+const EditAddressPageContent = ({
 	params,
 }: {
 	params: Promise<{ id: string }>;
-}) {
+}) => {
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const isFromOrdersheet = searchParams.get("from") === "ordersheet";
 	const { id } = use(params);
 	const addressId = parseInt(id, 10);
 	const { data: addresses, isLoading } = useAddresses();
@@ -100,7 +102,7 @@ export default function EditAddressPage({
 			});
 
 			// 배송지 변경 페이지로 이동
-			router.push("/account/addresses");
+			router.push(`/account/addresses${isFromOrdersheet ? "?from=ordersheet" : ""}`);
 		} catch (error) {
 			alert(
 				error instanceof Error ? error.message : "배송지 수정에 실패했습니다.",
@@ -139,7 +141,15 @@ export default function EditAddressPage({
 				<div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 px-5">
 					<button
 						type="button"
-						onClick={() => router.back()}
+						onClick={() => {
+							if (isFromOrdersheet) {
+								// 결제 페이지에서 왔다면 히스토리를 교체하여 이동
+								router.replace("/ordersheet");
+							} else {
+								// 그 외의 경우 일반 뒤로가기
+								router.back();
+							}
+						}}
 						className="p-1 cursor-pointer"
 						aria-label="뒤로가기"
 					>
@@ -274,7 +284,28 @@ export default function EditAddressPage({
 			</div>
 		</ProtectedRoute>
 	);
+};
+
+export default function EditAddressPage({
+	params,
+}: {
+	params: Promise<{ id: string }>;
+}) {
+	return (
+		<Suspense fallback={
+			<ProtectedRoute>
+				<div className="flex flex-col h-screen bg-white">
+					<div className="flex items-center justify-center flex-1">
+						<p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+					</div>
+				</div>
+			</ProtectedRoute>
+		}>
+			<EditAddressPageContent params={params} />
+		</Suspense>
+	);
 }
+
 
 
 
