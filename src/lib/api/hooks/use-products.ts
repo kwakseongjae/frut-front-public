@@ -290,3 +290,10 @@ export const useUpdateProduct = () => {
     },
   });
 };
+
+export const useRecommendedSearchTerms = () => {
+  return useQuery({
+    queryKey: productsQueryKeys.recommendedSearchTerms(),
+    queryFn: () => productsApi.getRecommendedSearchTerms(),
+  });
+};

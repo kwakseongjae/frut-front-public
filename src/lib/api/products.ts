@@ -873,6 +873,48 @@ export const productsApi = {
       };
     }
   },
+
+  getRecommendedSearchTerms: async (): Promise<RecommendedSearchTerm[]> => {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const url = `${API_BASE_URL}/api/products/search-terms/recommended`;
+
+    let accessToken: string | null = null;
+    if (typeof window !== "undefined") {
+      accessToken = localStorage.getItem("accessToken");
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error("추천 검색어를 불러오는데 실패했습니다.");
+    }
+
+    const jsonData = await response.json();
+
+    // 응답이 { success, data } 형식인지 확인
+    if (jsonData.success && jsonData.data) {
+      return jsonData.data as RecommendedSearchTerm[];
+    }
+
+    // 직접 배열 형식인 경우
+    if (Array.isArray(jsonData)) {
+      return jsonData as RecommendedSearchTerm[];
+    }
+
+    // 기본값 반환
+    return [];
+  },
 };
 
 export interface SellerManagementStatistics {
@@ -925,6 +967,13 @@ export interface CreateProductRequest {
 
 export type UpdateProductRequest = CreateProductRequest;
 
+export interface RecommendedSearchTerm {
+  id: number;
+  term: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const productsQueryKeys = {
   all: queryKeys.products.all,
   lists: () => [...queryKeys.products.all, "list"] as const,
@@ -948,4 +997,6 @@ export const productsQueryKeys = {
       params?.q,
       params?.status,
     ] as const,
+  recommendedSearchTerms: () =>
+    [...queryKeys.products.all, "recommended-search-terms"] as const,
 };

@@ -6,7 +6,10 @@ import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import CloseIcon from "@/assets/icon/ic_close_white_bg_grey_17.svg";
 import SearchIcon from "@/assets/icon/ic_search_grey_22.svg";
 import ProductCard from "@/components/ProductCard";
-import { useInfiniteProducts } from "@/lib/api/hooks/use-products";
+import {
+  useInfiniteProducts,
+  useRecommendedSearchTerms,
+} from "@/lib/api/hooks/use-products";
 
 const SearchPageContent = () => {
   const router = useRouter();
@@ -16,10 +19,11 @@ const SearchPageContent = () => {
   const [currentSearchTerm, setCurrentSearchTerm] = useState<string>("");
   const [isComposing, setIsComposing] = useState(false);
 
-  // 추천 검색어 데이터
-  const recommendedSearches = ["사과", "복숭아", "지혁이농장", "수박", "참외"];
-
   const observerTarget = useRef<HTMLDivElement>(null);
+
+  // 추천 검색어 API 호출
+  const { data: recommendedSearchTermsData } = useRecommendedSearchTerms();
+  const recommendedSearches = recommendedSearchTermsData?.map((item) => item.term) ?? [];
 
   // 검색 API 호출 (검색어가 있을 때만)
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -288,23 +292,25 @@ const SearchPageContent = () => {
           )}
 
           {/* 추천 검색어 */}
-          <div className="px-5 py-4">
-            <h2 className="text-base font-semibold text-[#262626] mb-3">
-              추천 검색어
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {recommendedSearches.map((search) => (
-                <button
-                  key={search}
-                  type="button"
-                  onClick={() => handleRecommendedClick(search)}
-                  className="px-4 py-2 bg-[#F0F8F0] text-[#133A1B] text-sm font-medium rounded-full cursor-pointer hover:bg-[#E8F5E8] transition-colors"
-                >
-                  {search}
-                </button>
-              ))}
+          {recommendedSearches.length > 0 && (
+            <div className="px-5 py-4">
+              <h2 className="text-base font-semibold text-[#262626] mb-3">
+                추천 검색어
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {recommendedSearches.map((search) => (
+                  <button
+                    key={search}
+                    type="button"
+                    onClick={() => handleRecommendedClick(search)}
+                    className="px-4 py-2 bg-[#F0F8F0] text-[#133A1B] text-sm font-medium rounded-full cursor-pointer hover:bg-[#E8F5E8] transition-colors"
+                  >
+                    {search}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

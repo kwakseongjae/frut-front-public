@@ -13,12 +13,14 @@ import type { BannerAd } from "@/lib/api/operations";
 interface BannerCarouselProps {
   banners: BannerAd[];
   height?: string;
+  aspectRatio?: string; // 비율 (예: "24/7" for 1440x420)
   autoSlideInterval?: number; // 자동 슬라이드 간격 (ms)
 }
 
 const BannerCarousel = ({
   banners,
-  height = "430px",
+  height,
+  aspectRatio,
   autoSlideInterval = 5000,
 }: BannerCarouselProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -30,6 +32,8 @@ const BannerCarousel = ({
   // mutation 함수를 ref로 저장하여 의존성 배열 문제 방지
   const mutateViewRef = useRef(incrementViewMutation.mutate);
   const mutateClickRef = useRef(incrementClickMutation.mutate);
+  // 이미 조회수를 증가시킨 배너 ID들을 추적 (한 바퀴까지만 조회수 증가)
+  const viewedBannerIdsRef = useRef<Set<number>>(new Set());
 
   // mutation 함수 업데이트
   useEffect(() => {
@@ -90,27 +94,44 @@ const BannerCarousel = ({
     };
   }, [isSingleBanner, banners.length, autoSlideInterval, isVisible]);
 
-  // 현재 배너가 변경될 때마다 조회수 증가 (뷰포트에 보일 때만)
+  // 현재 배너가 변경될 때마다 조회수 증가 (뷰포트에 보일 때만, 한 바퀴까지만)
   useEffect(() => {
     if (!isVisible) return;
 
     const currentBannerId = banners[currentIndex]?.id;
     if (!currentBannerId) return;
 
-    // 뷰포트에 보일 때만 조회수 증가
+    // 이미 조회수를 증가시킨 배너인지 확인
+    if (viewedBannerIdsRef.current.has(currentBannerId)) {
+      return;
+    }
+
+    // 한 바퀴를 완료했는지 확인 (모든 배너를 한 번씩 봤는지)
+    if (viewedBannerIdsRef.current.size >= banners.length) {
+      return;
+    }
+
+    // 뷰포트에 보일 때만 조회수 증가하고, 해당 배너 ID를 기록
     mutateViewRef.current(currentBannerId);
+    viewedBannerIdsRef.current.add(currentBannerId);
     // banners 배열 전체가 아닌 특정 인덱스의 ID만 의존성으로 사용하여 무한 루프 방지
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, isVisible, banners[currentIndex]?.id]);
 
-  // 단일 배너인 경우 뷰포트에 보일 때 조회수 증가
+  // 단일 배너인 경우 뷰포트에 보일 때 조회수 증가 (한 번만)
   useEffect(() => {
     if (!isSingleBanner || !isVisible || banners.length === 0) return;
 
     const singleBannerId = banners[0]?.id;
     if (!singleBannerId) return;
 
+    // 이미 조회수를 증가시킨 배너인지 확인
+    if (viewedBannerIdsRef.current.has(singleBannerId)) {
+      return;
+    }
+
     mutateViewRef.current(singleBannerId);
+    viewedBannerIdsRef.current.add(singleBannerId);
     // banners 배열 전체가 아닌 첫 번째 배너의 ID만 의존성으로 사용하여 무한 루프 방지
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSingleBanner, isVisible, banners.length, banners[0]?.id]);
@@ -158,11 +179,18 @@ const BannerCarousel = ({
 
   const currentBanner = banners[currentIndex] || banners[0];
 
+  // 컨테이너 스타일 결정
+  const containerStyle = aspectRatio
+    ? { aspectRatio }
+    : height
+      ? { height }
+      : { height: "430px" };
+
   return (
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden"
-      style={{ height }}
+      style={containerStyle}
     >
       {/* 배너 슬라이드 컨테이너 */}
       <div
@@ -196,7 +224,7 @@ const BannerCarousel = ({
       {/* 숫자 인디케이터 - 배너가 2개 이상일 때만 가운데 하단에 표시 */}
       {banners.length >= 2 && (
         <div className="absolute bottom-[14px] left-1/2 transform -translate-x-1/2 z-[5]">
-          <div className="backdrop-blur-md bg-black/40 border border-black/20 text-white text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full shadow-lg">
+          <div className="backdrop-blur-md bg-black/15 border border-black/10 text-white text-xs px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full shadow-lg">
             <span className="font-medium tracking-wide drop-shadow-sm">
               {currentIndex + 1}/{banners.length}
             </span>
@@ -209,7 +237,7 @@ const BannerCarousel = ({
         <button
           type="button"
           onClick={handlePrev}
-          className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 z-[5] backdrop-blur-md bg-black/40 border border-black/20 rounded-full flex items-center justify-center shadow-lg hover:bg-black/50 hover:scale-105 transition-all duration-200 group cursor-pointer p-1.5 sm:p-2"
+          className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 z-[5] backdrop-blur-md bg-black/10 border border-black/5 rounded-full flex items-center justify-center shadow-lg hover:bg-black/40 hover:border-black/20 hover:scale-105 transition-all duration-200 group cursor-pointer p-1.5 sm:p-2"
           aria-label="이전 배너"
         >
           <ChevronRightIcon20 className="rotate-180 sm:hidden group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />
@@ -222,7 +250,7 @@ const BannerCarousel = ({
         <button
           type="button"
           onClick={handleNext}
-          className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 z-[5] backdrop-blur-md bg-black/40 border border-black/20 rounded-full flex items-center justify-center shadow-lg hover:bg-black/50 hover:scale-105 transition-all duration-200 group cursor-pointer p-1.5 sm:p-2"
+          className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 z-[5] backdrop-blur-md bg-black/10 border border-black/5 rounded-full flex items-center justify-center shadow-lg hover:bg-black/40 hover:border-black/20 hover:scale-105 transition-all duration-200 group cursor-pointer p-1.5 sm:p-2"
           aria-label="다음 배너"
         >
           <ChevronRightIcon20 className="sm:hidden group-hover:scale-110 transition-transform duration-200 drop-shadow-sm" />

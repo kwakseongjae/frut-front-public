@@ -358,15 +358,15 @@ export default function Home() {
       </div>
       {/* 중간 배너 영역 */}
       {isLoadingMiddleBanners ? (
-        <div className="w-full h-[140px] bg-[#D9D9D9] animate-pulse" />
+        <div className="w-full bg-[#D9D9D9] animate-pulse" style={{ aspectRatio: "24/7" }} />
       ) : middleBanners && middleBanners.length > 0 ? (
         <BannerCarousel
           banners={middleBanners}
-          height="140px"
+          aspectRatio="24/7"
           autoSlideInterval={5000}
         />
       ) : (
-        <div className="w-full h-[140px] relative">
+        <div className="w-full relative" style={{ aspectRatio: "24/7" }}>
           <Image
             src={ad_banner}
             alt="중간 배너"

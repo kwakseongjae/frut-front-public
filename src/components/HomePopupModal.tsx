@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePopups } from "@/lib/api/hooks/use-operations";
 
@@ -42,8 +41,8 @@ const HomePopupModal = () => {
     }
 
     // 랜덤 선택
-    const randomIndex = Math.floor(Math.random() * validPopups.length);
-    return validPopups[randomIndex];
+    const popupRandomIndex = Math.floor(Math.random() * validPopups.length);
+    return validPopups[popupRandomIndex];
   }, [popupsData]);
 
   // 로컬스토리지에서 오늘 날짜의 팝업 숨김 여부 확인
@@ -120,24 +119,23 @@ const HomePopupModal = () => {
       <div className="absolute inset-0 bg-black/50" />
 
       {/* 모달 컨텐츠 */}
-      <div className="relative w-full max-w-[360px] mx-4 bg-white border border-[#E5E5E5] flex flex-col z-10">
-        {/* 이미지 영역 - 3:4 비율 (너비 360px 기준 높이 480px) */}
+      <div className="relative w-[320px] mx-4 bg-white flex flex-col z-10">
+        {/* 이미지 영역 - 너비 320px, 원본 비율 유지 */}
         <button
           type="button"
-          className="w-full relative bg-gray-100 cursor-pointer p-0 border-0"
-          style={{ aspectRatio: "3/4" }}
+          className="w-full bg-gray-100 cursor-pointer p-0 border-0"
           onClick={handleImageClick}
           aria-label={selectedPopup.popup_title}
         >
           {selectedPopup.popup_image ? (
-            <Image
+            <img
               src={selectedPopup.popup_image}
               alt={selectedPopup.popup_title}
-              fill
-              className="object-cover"
+              className="w-full h-auto"
+              style={{ display: "block" }}
             />
           ) : (
-            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+            <div className="w-full bg-gray-200 flex items-center justify-center" style={{ minHeight: "200px" }}>
               <span className="text-sm text-gray-400">이미지 영역</span>
             </div>
           )}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import PlusIcon from "@/assets/icon/ic_plus_black_16.svg";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   useMySellerProfile,
   useUpdateSellerProfile,
@@ -13,14 +14,19 @@ import { uploadApi } from "@/lib/api/upload";
 
 const BusinessProfileEditPage = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const farmLocationId = useId();
   const introductionId = useId();
+  const farmNameId = useId();
   const { data: profileData, isLoading } = useMySellerProfile();
   const updateProfileMutation = useUpdateSellerProfile();
 
+  const isAdmin = user?.user_type === "ADMIN";
+
   const [farmLocation, setFarmLocation] = useState("");
   const [introduction, setIntroduction] = useState("");
+  const [farmName, setFarmName] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +36,7 @@ const BusinessProfileEditPage = () => {
     if (profileData) {
       setFarmLocation(profileData.location || "");
       setIntroduction(profileData.farm_description || "");
+      setFarmName(profileData.farm_name || "");
       setProfileImage(profileData.farm_image_url || null);
     }
   }, [profileData]);
@@ -76,10 +83,6 @@ const BusinessProfileEditPage = () => {
     if (isSubmitting) return;
 
     // 유효성 검사
-    if (!farmLocation.trim()) {
-      alert("농장위치를 입력해주세요.");
-      return;
-    }
     if (introduction.length > 50) {
       alert("소개글은 최대 50자까지 입력 가능합니다.");
       return;
@@ -98,9 +101,9 @@ const BusinessProfileEditPage = () => {
         farmImagePath = profileData.farm_image;
       }
 
-      // 프로필 업데이트 API 호출 (농장명은 기존 값 사용)
+      // 프로필 업데이트 API 호출
       await updateProfileMutation.mutateAsync({
-        farm_name: profileData?.farm_name || "",
+        farm_name: isAdmin ? farmName.trim() : profileData?.farm_name || "",
         location: farmLocation.trim(),
         farm_description: introduction.trim(),
         farm_image: farmImagePath,
@@ -188,6 +191,28 @@ const BusinessProfileEditPage = () => {
 
       {/* 입력 필드 영역 */}
       <div className="flex flex-col px-5 gap-6">
+        {/* 농장명 (관리자만 표시) */}
+        {isAdmin && (
+          <div className="flex flex-col gap-[10px]">
+            <label
+              htmlFor={farmNameId}
+              className="text-sm font-medium text-[#595959]"
+            >
+              농장명
+            </label>
+            <div className="w-full border border-[#D9D9D9] p-3">
+              <input
+                type="text"
+                id={farmNameId}
+                value={farmName}
+                onChange={(e) => setFarmName(e.target.value)}
+                placeholder="농장명을 입력해 주세요"
+                className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
+              />
+            </div>
+          </div>
+        )}
+
         {/* 농장위치 */}
         <div className="flex flex-col gap-[10px]">
           <label
