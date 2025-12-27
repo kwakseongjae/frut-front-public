@@ -303,6 +303,142 @@ export const authApi = {
   },
 };
 
+// SNS 로그인 관련 타입 및 API
+export type SnsType = "KAKAO" | "NAVER";
+
+export interface SnsPrepareRequest {
+  sns_type: SnsType;
+  code: string;
+  redirect_uri?: string; // Kakao 필수
+  state?: string; // Naver 필수
+}
+
+export interface SnsPrepareResponse {
+  username: string;
+  name: string;
+  email: string | null;
+  sns_type: SnsType;
+  sns_id: string;
+  is_existing_user: boolean;
+  prepare_token: string;
+}
+
+export interface SnsLoginRequest {
+  sns_type: SnsType;
+  code: string;
+  redirect_uri?: string; // Kakao 필수
+  state?: string; // Naver 필수
+  prepare_token: string;
+}
+
+export interface SnsRegisterRequest {
+  prepare_token: string;
+  name: string;
+  phone: string;
+  email?: string;
+  marketing_agreed: boolean;
+}
+
+export const snsAuthApi = {
+  prepare: async (request: SnsPrepareRequest): Promise<SnsPrepareResponse> => {
+    try {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+      console.log("SNS prepare API 호출:", {
+        url: `${apiBaseUrl}/api/users/auth/sns/prepare`,
+        request,
+      });
+
+      const data = await apiClient.post<SnsPrepareResponse>(
+        "/api/users/auth/sns/prepare",
+        request
+      );
+      return data;
+    } catch (error) {
+      console.error("SNS prepare API 호출 실패:", {
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+                stack: error.stack,
+              }
+            : String(error),
+        request,
+        apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "설정되지 않음",
+      });
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(
+        "SNS 정보 확인에 실패했습니다. 네트워크 연결을 확인해주세요."
+      );
+    }
+  },
+
+  login: async (request: SnsLoginRequest): Promise<LoginResponse> => {
+    try {
+      const data = await apiClient.post<LoginResponse>(
+        "/api/users/auth/sns/login",
+        request
+      );
+      return data;
+    } catch (error) {
+      console.error("SNS login API 호출 실패:", error);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(
+        "SNS 로그인에 실패했습니다. 네트워크 연결을 확인해주세요."
+      );
+    }
+  },
+
+  register: async (request: SnsRegisterRequest): Promise<RegisterResponse> => {
+    try {
+      // apiClient를 사용하되, 201 응답도 성공으로 처리하기 위해 직접 처리
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+      const response = await fetch(
+        `${apiBaseUrl}/api/users/auth/sns/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(request),
+        }
+      );
+
+      const data: RegisterResponse = await response.json();
+
+      // 201 (Created) 또는 200 (OK) 응답은 성공으로 처리
+      if (
+        (response.status === 201 || response.status === 200) &&
+        data.success
+      ) {
+        return data;
+      }
+
+      // 에러 응답 처리
+      const error = new Error(data.message || "SNS 회원가입에 실패했습니다.");
+      // 필드별 에러 정보를 에러 객체에 포함
+      (
+        error as Error & { fieldErrors?: Record<string, string[]> }
+      ).fieldErrors = (
+        data as unknown as { data?: Record<string, string[]> }
+      ).data;
+      throw error;
+    } catch (error) {
+      console.error("SNS register API 호출 실패:", error);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(
+        "SNS 회원가입에 실패했습니다. 네트워크 연결을 확인해주세요."
+      );
+    }
+  },
+};
+
 export const authQueryKeys = {
   all: queryKeys.users.auth.all,
   login: queryKeys.users.auth.login,

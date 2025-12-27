@@ -340,7 +340,7 @@ const EditAccountPage = () => {
                     disabled={
                       !newPhone.trim() || isSendingSms || isVerifyingCode
                     }
-                    className="w-[85px] py-3 text-sm font-medium text-[#133A1B] border border-[#133A1B] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-[112px] py-3 text-sm font-medium text-[#133A1B] border border-[#133A1B] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSendingSms ? "발송 중..." : "인증요청"}
                   </button>
@@ -380,7 +380,7 @@ const EditAccountPage = () => {
                       isVerifyingCode ||
                       verificationCode.length !== 6
                     }
-                    className="w-[85px] py-3.5 text-sm font-medium text-[#133A1B] border border-[#133A1B] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-[112px] py-3.5 text-sm font-medium text-[#133A1B] border border-[#133A1B] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isVerifyingCode ? "확인 중..." : "확인"}
                   </button>
@@ -420,7 +420,7 @@ const EditAccountPage = () => {
                 type="button"
                 onClick={handleChangeEmail}
                 disabled={updateProfileMutation.isPending || isLoading}
-                className="px-4 py-3 text-sm font-medium text-[#133A1B] border border-[#133A1B] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-[112px] py-3 text-sm font-medium text-[#133A1B] border border-[#133A1B] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {updateProfileMutation.isPending ? "변경 중..." : "변경하기"}
               </button>

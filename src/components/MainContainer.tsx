@@ -14,6 +14,7 @@ const MainContainer = ({ children }: MainContainerProps) => {
 
   // Category, Farm, Product, Signin, Signup, Cart, Search, Orders detail 페이지에서는 TopBar와 TabBar 숨기기
   const shouldHideTopBar =
+    pathname.startsWith("/maintenance") ||
     pathname.startsWith("/categories/") ||
     pathname.startsWith("/farms") ||
     pathname.startsWith("/products/") ||
@@ -34,6 +35,7 @@ const MainContainer = ({ children }: MainContainerProps) => {
     (pathname.includes("/orders/") && pathname.includes("/complete")) ||
     (pathname.startsWith("/orders/") && pathname !== "/orders");
   const shouldHideTabBar =
+    pathname.startsWith("/maintenance") ||
     pathname.startsWith("/farms") ||
     pathname.startsWith("/products/") ||
     pathname.startsWith("/signin") ||

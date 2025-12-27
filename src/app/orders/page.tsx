@@ -416,10 +416,10 @@ const OrdersPage = () => {
                         </div>
                       )}
 
-                    {/* 환불/반품 신청 및 후기 작성 버튼 (배송완료 상태일 때만 표시) */}
+                    {/* 환불/교환 신청 및 후기 작성 버튼 (배송완료 상태일 때만 표시) */}
                     {order.originalStatus === "DELIVERED" && (
                       <div className="mt-3">
-                        {/* 클레임 이력이 있는 경우: 취소/환불/반품 상세 버튼 */}
+                        {/* 클레임 이력이 있는 경우: 취소/환불/교환 상세 버튼 */}
                         {order.claimInfo ? (
                           <>
                             {/* 취소한 주문: 취소 상세 버튼 */}
@@ -455,7 +455,7 @@ const OrdersPage = () => {
                                   환불 상세
                                 </button>
                               )}
-                            {/* 반품한 주문: 반품 상세 버튼 */}
+                            {/* 교환한 주문: 교환 상세 버튼 */}
                             {order.claimInfo.redeliveryId !== null &&
                               order.claimInfo.redeliveryId !== undefined && (
                                 <button
@@ -472,9 +472,9 @@ const OrdersPage = () => {
                                     }
                                   }}
                                   className="w-full py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
-                                  aria-label="반품 상세"
+                                  aria-label="교환 상세"
                                 >
-                                  반품 상세
+                                  교환 상세
                                 </button>
                               )}
                           </>
@@ -485,9 +485,9 @@ const OrdersPage = () => {
                               type="button"
                               onClick={() => handleRefundExchange(order.id)}
                               className="flex-1 py-3 border border-[#E5E5E5] bg-white text-[#262626] font-medium text-sm"
-                              aria-label="환불 / 반품 신청"
+                              aria-label="환불 / 교환 신청"
                             >
-                              환불 / 반품 신청
+                              환불 / 교환 신청
                             </button>
                             <button
                               type="button"

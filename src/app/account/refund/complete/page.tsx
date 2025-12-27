@@ -10,16 +10,16 @@ const RefundCompleteContent = () => {
   const searchParams = useSearchParams();
   const type = searchParams.get("type"); // "refund" or "return"
 
-  // 뒤로가기 시 환불/반품 신청 페이지로 가지 않도록 처리
+  // 뒤로가기 시 환불/교환 신청 페이지로 가지 않도록 처리
   useEffect(() => {
     const handlePopState = () => {
-      // 환불/반품 완료 페이지에서 뒤로가기 시 홈으로 이동
+      // 환불/교환 완료 페이지에서 뒤로가기 시 홈으로 이동
       router.replace("/");
     };
 
     window.addEventListener("popstate", handlePopState);
 
-    // 브라우저 히스토리에 현재 페이지를 추가하여 환불/반품 신청 페이지로 돌아가지 않도록 함
+    // 브라우저 히스토리에 현재 페이지를 추가하여 환불/교환 신청 페이지로 돌아가지 않도록 함
     window.history.pushState(null, "", window.location.href);
 
     return () => {
@@ -36,13 +36,13 @@ const RefundCompleteContent = () => {
     router.push("/");
   };
 
-  // 환불 또는 반품에 따른 메시지
+  // 환불 또는 교환에 따른 메시지
   const titleMessage =
     type === "refund"
       ? "환불 요청이 정상적으로 접수되었습니다."
-      : "반품 요청이 정상적으로 접수되었습니다.";
+      : "교환 요청이 정상적으로 접수되었습니다.";
 
-  const pageTitle = type === "refund" ? "환불 신청 완료" : "반품 신청 완료";
+  const pageTitle = type === "refund" ? "환불 신청 완료" : "교환 신청 완료";
 
   return (
     <div className="flex flex-col min-h-screen bg-white">

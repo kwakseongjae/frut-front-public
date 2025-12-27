@@ -148,7 +148,7 @@ const RefundRequestPage = () => {
       // 2. reason_type 매핑
       const reasonType = getReasonType(applicationReason);
 
-      // 3. 환불 또는 반품에 따라 다른 API 호출
+      // 3. 환불 또는 교환에 따라 다른 API 호출
       if (applicationType === "refund") {
         // 환불 신청
         const refundRequest: RefundRequest = {
@@ -165,7 +165,7 @@ const RefundRequestPage = () => {
         // 환불 완료 페이지로 이동
         router.push("/account/refund/complete?type=refund");
       } else if (applicationType === "return") {
-        // 반품 신청
+        // 교환 신청
         const redeliveryRequest: RedeliveryRequest = {
           order_item_id: itemDetail.id,
           reason_type: reasonType,
@@ -174,12 +174,12 @@ const RefundRequestPage = () => {
             uploadedImages.length > 0 ? uploadedImages : undefined,
         };
         await createRedeliveryMutation.mutateAsync(redeliveryRequest);
-        // 반품 완료 페이지로 이동
+        // 교환 완료 페이지로 이동
         router.push("/account/refund/complete?type=return");
       }
     } catch (error) {
-      console.error("환불/반품 신청 실패:", error);
-      alert("환불/반품 신청에 실패했습니다. 다시 시도해주세요.");
+      console.error("환불/교환 신청 실패:", error);
+      alert("환불/교환 신청에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setIsSubmitting(false);
     }
@@ -208,7 +208,7 @@ const RefundRequestPage = () => {
           <ChevronLeftIcon />
         </button>
         <div>
-          <h1 className="text-lg font-semibold text-[#262626]">환불 / 반품</h1>
+          <h1 className="text-lg font-semibold text-[#262626]">환불 / 교환</h1>
         </div>
         <div className="w-7" />
       </div>
@@ -320,7 +320,7 @@ const RefundRequestPage = () => {
                     onChange={(e) => setApplicationType(e.target.value)}
                   />
                   <span className="text-sm text-[#262626]">
-                    반품 (같은 제품 재발송)
+                    교환 (같은 제품 재발송)
                   </span>
                 </label>
               </div>
@@ -512,7 +512,7 @@ const RefundRequestPage = () => {
         ) : (
           <div className="flex items-center justify-center py-20">
             <p className="text-sm text-[#8C8C8C]">
-              환불/반품 신청 가능한 상품 정보를 불러올 수 없습니다.
+              환불/교환 신청 가능한 상품 정보를 불러올 수 없습니다.
             </p>
           </div>
         )}

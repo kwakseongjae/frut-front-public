@@ -118,7 +118,7 @@ const AccountPage = () => {
             className="flex items-center justify-between py-4 px-5 active:bg-[#F5F5F5]"
             tabIndex={0}
           >
-            <span className="text-base text-[#262626]">환불/반품</span>
+            <span className="text-base text-[#262626]">환불/교환</span>
             <ChevronRightIcon />
           </Link>
           <Link

@@ -1,13 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import FilledCheckbox from "@/assets/icon/ic_checkbox_green_18.svg";
 import UnfilledCheckbox from "@/assets/icon/ic_checkbox_grey_18.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import ChevronRightIcon from "@/assets/icon/ic_chevron_right_black_24.svg";
 import CloseIcon from "@/assets/icon/ic_close_black_24.svg";
+import PlusCircleIcon from "@/assets/icon/ic_plus_circle_15.svg";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ApplicableCoupon } from "@/lib/api/coupons";
 import { useCart, useDeleteCartItem } from "@/lib/api/hooks/use-cart";
@@ -17,8 +18,9 @@ import { useOrderPreview } from "@/lib/api/hooks/use-order-preview";
 import { useProductDetail } from "@/lib/api/hooks/use-product-detail";
 import { useAddresses } from "@/lib/api/hooks/use-users";
 
-export default function OrderSheetPage() {
+const OrderSheetPageContent = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isLoggedIn, isInitialized } = useAuth();
   const [selectedCoupon, setSelectedCoupon] = useState<string | null>(null);
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
@@ -365,11 +367,25 @@ export default function OrderSheetPage() {
   // 배송지 목록 조회
   const { data: addressesData, isLoading: isLoadingAddresses } = useAddresses();
 
-  // 기본 배송지 찾기 (is_default=true 우선, 없으면 첫 번째)
+  // 선택된 배송지 ID (쿼리 파라미터에서 가져오기)
+  const selectedAddressIdParam = searchParams.get("selectedAddressId");
+
+  // 기본 배송지 찾기 (선택된 배송지 우선, 없으면 is_default=true 우선, 없으면 첫 번째)
   const defaultAddress = useMemo(() => {
     if (!addressesData || addressesData.length === 0) return null;
+
+    // 선택된 배송지 ID가 있으면 해당 배송지 사용
+    if (selectedAddressIdParam) {
+      const selectedId = parseInt(selectedAddressIdParam, 10);
+      const selectedAddress = addressesData.find(
+        (addr) => addr.id === selectedId
+      );
+      if (selectedAddress) return selectedAddress;
+    }
+
+    // 선택된 배송지가 없으면 기본 배송지 또는 첫 번째 배송지 사용
     return addressesData.find((addr) => addr.is_default) || addressesData[0];
-  }, [addressesData]);
+  }, [addressesData, selectedAddressIdParam]);
 
   // 배송지 정보 상태
   const [deliveryRequest, setDeliveryRequest] = useState("");
@@ -979,20 +995,14 @@ export default function OrderSheetPage() {
                 />
               </>
             ) : (
-              <div className="flex flex-col gap-3">
-                <p className="text-sm text-[#8C8C8C]">
-                  등록된 배송지가 없습니다.
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push("/account/addresses/new?from=ordersheet")
-                  }
-                  className="w-full py-3 border border-[#133A1B] text-[#133A1B] font-semibold text-sm rounded"
-                >
-                  배송지 등록하기
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/account/addresses/empty")}
+                className="w-full py-3 border border-[#D9D9D9] text-[#262626] font-normal text-sm flex items-center justify-center gap-2"
+              >
+                <PlusCircleIcon className="w-4 h-4" />
+                <span>신규 배송지 등록</span>
+              </button>
             )}
           </div>
         </div>
@@ -1359,5 +1369,21 @@ export default function OrderSheetPage() {
         </div>
       )}
     </div>
+  );
+};
+
+export default function OrderSheetPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col min-h-screen">
+          <div className="flex items-center justify-center flex-1">
+            <p className="text-sm text-[#8C8C8C]">로딩 중...</p>
+          </div>
+        </div>
+      }
+    >
+      <OrderSheetPageContent />
+    </Suspense>
   );
 }

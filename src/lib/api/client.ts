@@ -10,6 +10,11 @@ export interface ApiError {
   success: false;
   message: string;
   errors?: Record<string, string[]>;
+  data?: {
+    title: string;
+    message: string;
+    expected_end_time: string;
+  };
 }
 
 class ApiClient {
@@ -84,29 +89,67 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     const accessToken = await this.getAccessToken();
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...(options.headers as Record<string, string>),
-    };
+    // 헤더 병합: options의 headers를 먼저 처리
+    const headers = new Headers(options.headers);
 
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
+    // body가 있는 경우에만 Content-Type 설정 (이미 설정되어 있지 않은 경우)
+    if (options.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
     }
 
-    let response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    } catch (error) {
+      // 네트워크 레벨 에러 처리
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorName = error instanceof Error ? error.name : "UnknownError";
+      console.error("API 요청 네트워크 에러:", {
+        url,
+        endpoint: endpoint,
+        baseURL: this.baseURL,
+        errorMessage,
+        errorName,
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+                stack: error.stack,
+              }
+            : String(error),
+      });
+
+      // 더 구체적인 에러 메시지 제공
+      if (
+        errorMessage.includes("Failed to fetch") ||
+        errorMessage.includes("NetworkError")
+      ) {
+        throw new Error(
+          `네트워크 연결에 실패했습니다. API 서버(${
+            this.baseURL || "설정되지 않음"
+          })에 연결할 수 없습니다.`
+        );
+      }
+
+      throw new Error(`네트워크 연결에 실패했습니다: ${errorMessage}`);
+    }
 
     // 401 에러 시 토큰 갱신 시도
     if (response.status === 401) {
       if (accessToken) {
         const newAccessToken = await this.refreshAccessToken();
         if (newAccessToken) {
-          const retryHeaders: Record<string, string> = {
-            ...headers,
-            Authorization: `Bearer ${newAccessToken}`,
-          };
+          const retryHeaders = new Headers(headers);
+          retryHeaders.set("Authorization", `Bearer ${newAccessToken}`);
           response = await fetch(url, {
             ...options,
             headers: retryHeaders,
@@ -130,6 +173,30 @@ class ApiClient {
     }
 
     if (!response.ok) {
+      // 503 에러 처리 (점검 모드)
+      if (response.status === 503) {
+        try {
+          const errorData: ApiError = await response.json();
+          if (errorData.data) {
+            // 점검 정보를 sessionStorage에 저장
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem(
+                "maintenanceData",
+                JSON.stringify(errorData.data)
+              );
+              // 점검 페이지로 리다이렉트 (현재 페이지가 점검 페이지가 아닌 경우만)
+              if (window.location.pathname !== "/maintenance") {
+                window.location.href = "/maintenance";
+              }
+            }
+          }
+        } catch (error) {
+          console.error("점검 정보 파싱 실패:", error);
+        }
+        // 점검 페이지로 리다이렉트했으므로 에러를 던지지 않고 대기
+        return new Promise(() => {}) as T;
+      }
+
       const errorData: ApiError = await response.json().catch(() => ({
         success: false,
         message: "요청 처리 중 오류가 발생했습니다.",

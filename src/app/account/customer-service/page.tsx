@@ -52,9 +52,9 @@ const CustomerServicePage = () => {
           type="button"
           onClick={handleFAQClick}
           className="flex items-center justify-between py-4 px-5 active:bg-[#F5F5F5]"
-          aria-label="FAQ"
+          aria-label="자주묻는 질문"
         >
-          <span className="text-base text-[#262626]">FAQ</span>
+          <span className="text-base text-[#262626]">자주묻는 질문</span>
           <ChevronRightIcon />
         </button>
         <button

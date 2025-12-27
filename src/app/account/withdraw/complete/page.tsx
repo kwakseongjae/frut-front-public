@@ -48,7 +48,7 @@ export default function WithdrawCompletePage() {
         </button>
         <div>
           <h1 className="text-lg font-semibold text-[#262626]">
-            회원탈퇴 완료
+            회원탈퇴
           </h1>
         </div>
         <div className="w-7" />
@@ -74,14 +74,14 @@ export default function WithdrawCompletePage() {
       </div>
 
       {/* 하단 고정 버튼 */}
-      <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E5E5] px-5 py-3">
+      <div className="sticky bottom-0 z-10 bg-white px-5 py-3">
         <button
           type="button"
           onClick={handleGoHome}
           className="w-full py-4 bg-[#133A1B] text-white font-semibold text-sm cursor-pointer"
           aria-label="홈으로"
         >
-          홈으로 이동
+          홈으로
         </button>
       </div>
     </div>

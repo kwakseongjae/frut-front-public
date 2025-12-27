@@ -1,18 +1,18 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import FilledCheckbox from "@/assets/icon/ic_checkbox_green_18.svg";
 import UnfilledCheckbox from "@/assets/icon/ic_checkbox_grey_18.svg";
 import ChevronLeftIcon from "@/assets/icon/ic_chevron_left_black_28.svg";
 import { useAuth } from "@/contexts/AuthContext";
-import { authApi } from "@/lib/api/auth";
+import { authApi, type SnsType, snsAuthApi } from "@/lib/api/auth";
 import { useLogin } from "@/lib/api/hooks/use-auth";
 
-// zod 스키마 정의
+// zod 스키마 정의 (일반 회원가입용)
 const signUpSchema = z
   .object({
     userId: z
@@ -58,10 +58,28 @@ const signUpSchema = z
     path: ["confirmPassword"],
   });
 
-type SignUpFormData = z.infer<typeof signUpSchema>;
+// 소셜 회원가입용 스키마 (비밀번호 없음)
+const snsSignUpSchema = z.object({
+  email: z
+    .string()
+    .optional()
+    .refine(
+      (value) => {
+        if (!value || value.trim() === "") return true;
+        return z.string().email().safeParse(value).success;
+      },
+      {
+        message: "올바른 이메일 형식을 입력해주세요.",
+      }
+    ),
+});
 
-const SignUpPage = () => {
+type SignUpFormData = z.infer<typeof signUpSchema>;
+type SnsSignUpFormData = z.infer<typeof snsSignUpSchema>;
+
+const SignUpPageContent = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const loginMutation = useLogin();
   const userIdId = useId();
@@ -72,15 +90,57 @@ const SignUpPage = () => {
   const verificationCodeId = useId();
   const emailId = useId();
 
+  // 소셜 회원가입 모드 확인
+  const snsParam = searchParams.get("sns");
+  const isSnsSignUp = snsParam === "kakao" || snsParam === "naver";
+  const [snsSignupData, setSnsSignupData] = useState<{
+    sns_type: SnsType;
+    code: string;
+    redirect_uri?: string;
+    state?: string;
+    username: string;
+    name: string;
+    email: string | null;
+  } | null>(null);
+
+  // 소셜 회원가입 모드일 때 스키마 선택
+  const formSchema = isSnsSignUp ? snsSignUpSchema : signUpSchema;
   const {
     register,
     handleSubmit,
     watch,
     formState: { errors, isValid },
-  } = useForm<SignUpFormData>({
-    resolver: zodResolver(signUpSchema),
+  } = useForm<SignUpFormData | SnsSignUpFormData>({
+    resolver: zodResolver(formSchema),
     mode: "onChange",
   });
+
+  // 소셜 회원가입 데이터 로드
+  useEffect(() => {
+    if (isSnsSignUp && typeof window !== "undefined") {
+      const storedData = sessionStorage.getItem("snsSignupData");
+      if (storedData) {
+        try {
+          const data = JSON.parse(storedData);
+          setSnsSignupData(data);
+          // 이름과 이메일 초기화
+          if (data.name) {
+            setName(data.name);
+          }
+          if (data.email) {
+            // 이메일은 form의 watch로 관리되므로 setValue 사용
+            // 하지만 현재 구조상 useState로 관리하는 것이 더 간단
+          }
+        } catch (error) {
+          console.error("소셜 회원가입 데이터 파싱 실패:", error);
+          router.replace("/signup");
+        }
+      } else {
+        // 소셜 회원가입 모드인데 데이터가 없으면 일반 회원가입으로 리다이렉트
+        router.replace("/signup");
+      }
+    }
+  }, [isSnsSignUp, router]);
 
   const watchedPassword = watch("password") || "";
 
@@ -106,6 +166,8 @@ const SignUpPage = () => {
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [signUpError, setSignUpError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isUsernameAvailable, setIsUsernameAvailable] = useState<
     boolean | null
@@ -278,14 +340,8 @@ const SignUpPage = () => {
     }
   };
 
-  const handleSignUp = async (data: SignUpFormData) => {
+  const handleSignUp = async (data: SignUpFormData | SnsSignUpFormData) => {
     if (!isFormValid) {
-      return;
-    }
-
-    // 아이디 중복 확인이 완료되지 않았거나 사용 불가능한 경우
-    if (!isUsernameChecked || !isUsernameAvailable) {
-      setSignUpError("아이디 중복 확인을 완료해주세요.");
       return;
     }
 
@@ -295,33 +351,112 @@ const SignUpPage = () => {
     setSignUpError(null);
 
     try {
-      await authApi.register({
-        username: data.userId.trim(),
-        name: name.trim(),
-        email: data.email?.trim() || "",
-        phone: phoneNumber,
-        password: data.password,
-        password_confirm: data.confirmPassword,
-        marketing_agreed: agreements.marketing === true,
-      });
+      if (isSnsSignUp && snsSignupData) {
+        // 소셜 회원가입
+        // API 명세에 따르면 prepare에서 사용한 code는 재사용 불가하므로,
+        // 새로운 authorization_code를 받기 위해 SNS 로그인을 다시 수행해야 함
+        // 회원가입 데이터를 sessionStorage에 저장하고 SNS 로그인으로 리다이렉트
+        const signupFormData = {
+          sns_type: snsSignupData.sns_type,
+          redirect_uri: snsSignupData.redirect_uri,
+          name: name.trim(),
+          phone: phoneNumber,
+          email:
+            (data as SnsSignUpFormData).email?.trim() ||
+            snsSignupData.email ||
+            undefined,
+          marketing_agreed: agreements.marketing === true,
+        };
 
-      // 회원가입 성공 시 자동 로그인
-      try {
-        const loginResult = await loginMutation.mutateAsync({
-          username: data.userId.trim(),
-          password: data.password,
+        // 회원가입 폼 데이터 저장 (새로운 code를 받은 후 사용)
+        sessionStorage.setItem(
+          "snsSignupFormData",
+          JSON.stringify(signupFormData)
+        );
+
+        // SNS 로그인 재수행하여 새로운 authorization_code 획득
+        if (snsSignupData.sns_type === "KAKAO") {
+          const clientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID;
+          const redirectUri = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || "";
+
+          if (!clientId || !redirectUri) {
+            setSignUpError("카카오 로그인 설정이 올바르지 않습니다.");
+            setIsSigningUp(false);
+            return;
+          }
+
+          // CSRF 방지를 위한 state 생성
+          const state =
+            Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15);
+          sessionStorage.setItem("kakao_state", state);
+          sessionStorage.setItem("kakao_signup_mode", "true");
+
+          const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+            redirectUri
+          )}&response_type=code&state=${state}`;
+          window.location.href = kakaoAuthUrl;
+          return;
+        } else if (snsSignupData.sns_type === "NAVER") {
+          const clientId = process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
+          const redirectUri = process.env.NEXT_PUBLIC_NAVER_CALLBACK_URL || "";
+
+          if (!clientId || !redirectUri) {
+            setSignUpError("네이버 로그인 설정이 올바르지 않습니다.");
+            setIsSigningUp(false);
+            return;
+          }
+
+          // CSRF 방지를 위한 state 생성
+          const state =
+            Math.random().toString(36).substring(2, 15) +
+            Math.random().toString(36).substring(2, 15);
+          sessionStorage.setItem("naver_state", state);
+          sessionStorage.setItem("naver_signup_mode", "true");
+
+          const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+            redirectUri
+          )}&state=${state}`;
+          window.location.href = naverAuthUrl;
+          return;
+        }
+      } else {
+        // 일반 회원가입
+        // 아이디 중복 확인이 완료되지 않았거나 사용 불가능한 경우
+        if (!isUsernameChecked || !isUsernameAvailable) {
+          setSignUpError("아이디 중복 확인을 완료해주세요.");
+          setIsSigningUp(false);
+          return;
+        }
+
+        await authApi.register({
+          username: (data as SignUpFormData).userId.trim(),
+          name: name.trim(),
+          email: (data as SignUpFormData).email?.trim() || "",
+          phone: phoneNumber,
+          password: (data as SignUpFormData).password,
+          password_confirm: (data as SignUpFormData).confirmPassword,
+          marketing_agreed: agreements.marketing === true,
         });
 
-        // AuthContext 업데이트
-        login(loginResult.user);
+        // 회원가입 성공 시 자동 로그인
+        try {
+          const loginResult = await loginMutation.mutateAsync({
+            username: (data as SignUpFormData).userId.trim(),
+            password: (data as SignUpFormData).password,
+          });
 
-        // 회원가입 완료 페이지로 리다이렉트
-        router.push("/signup/complete");
-      } catch {
-        // 자동 로그인 실패 시 로그인 페이지로 리다이렉트
-        router.push(
-          "/signin?message=회원가입이 완료되었습니다. 로그인해주세요."
-        );
+          // AuthContext 업데이트
+          login(loginResult.user);
+
+          // 회원가입 완료 페이지로 리다이렉트
+          router.push("/signup/complete");
+        } catch {
+          // 자동 로그인 실패 시 로그인 페이지로 리다이렉트
+          router.push(
+            "/signin?message=회원가입이 완료되었습니다. 로그인해주세요."
+          );
+        }
       }
     } catch (error) {
       const fieldErrorsData = (
@@ -331,6 +466,9 @@ const SignUpPage = () => {
       if (fieldErrorsData) {
         // 필드별 에러 메시지를 한글로 변환
         const errorMessages: string[] = [];
+        let phoneErrorMessage: string | null = null;
+        let emailErrorMessage: string | null = null;
+
         if (fieldErrorsData.username) {
           fieldErrorsData.username.forEach((msg) => {
             if (msg.includes("already exists")) {
@@ -342,19 +480,29 @@ const SignUpPage = () => {
         }
         if (fieldErrorsData.email) {
           fieldErrorsData.email.forEach((msg) => {
-            if (msg.includes("already exists")) {
-              errorMessages.push("이미 사용 중인 이메일입니다.");
+            if (
+              msg.includes("already exists") ||
+              msg.includes("이미 사용") ||
+              msg.includes("사용 중")
+            ) {
+              emailErrorMessage = "이미 사용 중인 이메일입니다.";
             } else {
-              errorMessages.push(`이메일: ${msg}`);
+              emailErrorMessage = `이메일: ${msg}`;
             }
           });
         }
         if (fieldErrorsData.phone) {
           fieldErrorsData.phone.forEach((msg) => {
             if (msg.includes("인증이 필요")) {
-              errorMessages.push("전화번호 인증이 필요합니다.");
+              phoneErrorMessage = "전화번호 인증이 필요합니다.";
+            } else if (
+              msg.includes("already exists") ||
+              msg.includes("이미 사용") ||
+              msg.includes("사용 중")
+            ) {
+              phoneErrorMessage = "이미 사용 중인 전화번호입니다.";
             } else {
-              errorMessages.push(`전화번호: ${msg}`);
+              phoneErrorMessage = `전화번호: ${msg}`;
             }
           });
         }
@@ -373,28 +521,46 @@ const SignUpPage = () => {
             errorMessages.push(`이름: ${msg}`);
           });
         }
-        setSignUpError(errorMessages.join("\n"));
+
+        // 전화번호와 이메일 에러는 별도 state로 관리
+        setPhoneError(phoneErrorMessage);
+        setEmailError(emailErrorMessage);
+
+        // 전화번호와 이메일 에러를 제외한 나머지 에러만 회원가입 버튼 위에 표시
+        setSignUpError(
+          errorMessages.length > 0 ? errorMessages.join("\n") : null
+        );
       } else {
         setSignUpError(
           error instanceof Error
             ? error.message
             : "회원가입에 실패했습니다. 다시 시도해주세요."
         );
+        setPhoneError(null);
+        setEmailError(null);
       }
     } finally {
       setIsSigningUp(false);
     }
   };
 
-  const isFormValid =
-    isValid &&
-    name.trim() &&
-    phone.trim() &&
-    isPhoneVerified &&
-    isUsernameChecked &&
-    isUsernameAvailable &&
-    agreements.terms &&
-    agreements.privacy;
+  const isFormValid = isSnsSignUp
+    ? // 소셜 회원가입: 이름, 전화번호 인증, 약관 동의만 필요
+      isValid &&
+      name.trim() &&
+      phone.trim() &&
+      isPhoneVerified &&
+      agreements.terms &&
+      agreements.privacy
+    : // 일반 회원가입: 기존 조건
+      isValid &&
+      name.trim() &&
+      phone.trim() &&
+      isPhoneVerified &&
+      isUsernameChecked &&
+      isUsernameAvailable &&
+      agreements.terms &&
+      agreements.privacy;
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
@@ -409,7 +575,9 @@ const SignUpPage = () => {
           <ChevronLeftIcon />
         </button>
         <div>
-          <h1 className="text-lg font-semibold text-[#262626]">회원가입</h1>
+          <h1 className="text-lg font-semibold text-[#262626]">
+            {isSnsSignUp ? "소셜 회원가입" : "회원가입"}
+          </h1>
         </div>
         <div className="w-7" />
       </div>
@@ -417,115 +585,126 @@ const SignUpPage = () => {
       {/* 폼 영역 */}
       <div className="px-5 py-4">
         <div className="flex flex-col gap-5">
-          {/* 아이디 */}
-          <div className="flex flex-col gap-[10px]">
-            <label
-              htmlFor={userIdId}
-              className="text-sm font-medium text-[#595959]"
-            >
-              아이디
-            </label>
-            <div className="flex gap-2">
-              <div className="flex-1 border border-[#D9D9D9] p-3">
+          {/* 아이디 - 소셜 회원가입 모드에서는 숨김 */}
+          {!isSnsSignUp && (
+            <div className="flex flex-col gap-[10px]">
+              <label
+                htmlFor={userIdId}
+                className="text-sm font-medium text-[#595959]"
+              >
+                아이디
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 border border-[#D9D9D9] p-3">
+                  <input
+                    type="text"
+                    placeholder="영문/숫자 조합의 8자~20자"
+                    id={userIdId}
+                    {...register("userId", {
+                      onChange: () => {
+                        // 아이디가 변경되면 중복 확인 상태 초기화
+                        setIsUsernameChecked(false);
+                        setIsUsernameAvailable(null);
+                        setUsernameCheckMessage(null);
+                      },
+                    })}
+                    className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCheckUsername}
+                  disabled={
+                    isCheckingUsername ||
+                    !watchedUserId.trim() ||
+                    watchedUserId.trim().length < 8 ||
+                    watchedUserId.trim().length > 20 ||
+                    !/^[a-zA-Z0-9]+$/.test(watchedUserId.trim())
+                  }
+                  className="px-4 py-3 bg-[#133A1B] text-white text-sm font-semibold whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {isCheckingUsername ? "확인 중..." : "중복 확인"}
+                </button>
+              </div>
+              {usernameCheckMessage && (
+                <div
+                  className={`text-sm ${
+                    isUsernameAvailable ? "text-green-600" : "text-red-500"
+                  }`}
+                >
+                  {usernameCheckMessage}
+                </div>
+              )}
+              {!isSnsSignUp && "userId" in errors && errors.userId && (
+                <div className="text-sm text-red-500">
+                  {errors.userId.message}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 비밀번호 - 소셜 회원가입 모드에서는 숨김 */}
+          {!isSnsSignUp && (
+            <div className="flex flex-col gap-[10px]">
+              <label
+                htmlFor={passwordId}
+                className="text-sm font-medium text-[#595959]"
+              >
+                비밀번호
+              </label>
+              <div className="w-full border border-[#D9D9D9] p-3">
                 <input
-                  type="text"
-                  placeholder="영문/숫자 조합의 8자~20자"
-                  id={userIdId}
-                  {...register("userId", {
-                    onChange: () => {
-                      // 아이디가 변경되면 중복 확인 상태 초기화
-                      setIsUsernameChecked(false);
-                      setIsUsernameAvailable(null);
-                      setUsernameCheckMessage(null);
-                    },
-                  })}
+                  type="password"
+                  placeholder="영문/숫자/특수기호 조합중 2가지 이상을 활용하여 8자~20자 이하"
+                  id={passwordId}
+                  {...register("password")}
                   className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
                 />
               </div>
-              <button
-                type="button"
-                onClick={handleCheckUsername}
-                disabled={
-                  isCheckingUsername ||
-                  !watchedUserId.trim() ||
-                  watchedUserId.trim().length < 8 ||
-                  watchedUserId.trim().length > 20 ||
-                  !/^[a-zA-Z0-9]+$/.test(watchedUserId.trim())
-                }
-                className="px-4 py-3 bg-[#133A1B] text-white text-sm font-semibold whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isCheckingUsername ? "확인 중..." : "중복 확인"}
-              </button>
-            </div>
-            {usernameCheckMessage && (
-              <div
-                className={`text-sm ${
-                  isUsernameAvailable ? "text-green-600" : "text-red-500"
-                }`}
-              >
-                {usernameCheckMessage}
-              </div>
-            )}
-            {errors.userId && (
-              <div className="text-sm text-red-500">
-                {errors.userId.message}
-              </div>
-            )}
-          </div>
-
-          {/* 비밀번호 */}
-          <div className="flex flex-col gap-[10px]">
-            <label
-              htmlFor={passwordId}
-              className="text-sm font-medium text-[#595959]"
-            >
-              비밀번호
-            </label>
-            <div className="w-full border border-[#D9D9D9] p-3">
-              <input
-                type="password"
-                placeholder="영문/숫자/특수기호 조합중 2가지 이상을 활용하여 8자~20자 이하"
-                id={passwordId}
-                {...register("password")}
-                className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
-              />
-            </div>
-            {watchedPassword && (
-              <div className="flex flex-col gap-1">
-                {!isPasswordCombinationValid && (
+              {watchedPassword && (
+                <div className="flex flex-col gap-1">
+                  {!isPasswordCombinationValid && (
+                    <div className="text-sm text-red-500">
+                      영문/숫자/특수기호 조합중 2가지 이상 활용
+                    </div>
+                  )}
+                  {!isPasswordLengthValid && (
+                    <div className="text-sm text-red-500">8자~20자 이하</div>
+                  )}
+                </div>
+              )}
+              {!isSnsSignUp &&
+                "password" in errors &&
+                errors.password &&
+                watchedPassword === "" && (
                   <div className="text-sm text-red-500">
-                    영문/숫자/특수기호 조합중 2가지 이상 활용
+                    {errors.password.message}
                   </div>
                 )}
-                {!isPasswordLengthValid && (
-                  <div className="text-sm text-red-500">8자~20자 이하</div>
-                )}
-              </div>
-            )}
-            {errors.password && watchedPassword === "" && (
-              <div className="text-sm text-red-500">
-                {errors.password.message}
-              </div>
-            )}
-          </div>
-
-          {/* 비밀번호 확인 */}
-          <div className="flex flex-col gap-[10px]">
-            <div className="w-full border border-[#D9D9D9] p-3">
-              <input
-                type="password"
-                placeholder="비밀번호 확인"
-                id={confirmPasswordId}
-                {...register("confirmPassword")}
-                className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
-              />
             </div>
-            {errors.confirmPassword && (
-              <div className="text-sm text-red-500">
-                {errors.confirmPassword.message}
+          )}
+
+          {/* 비밀번호 확인 - 소셜 회원가입 모드에서는 숨김 */}
+          {!isSnsSignUp && (
+            <div className="flex flex-col gap-[10px]">
+              <div className="w-full border border-[#D9D9D9] p-3">
+                <input
+                  type="password"
+                  placeholder="비밀번호 확인"
+                  id={confirmPasswordId}
+                  {...register("confirmPassword")}
+                  className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
+                />
               </div>
-            )}
-          </div>
+              {!isSnsSignUp &&
+                "confirmPassword" in errors &&
+                errors.confirmPassword && (
+                  <div className="text-sm text-red-500">
+                    {errors.confirmPassword.message}
+                  </div>
+                )}
+            </div>
+          )}
 
           {/* 이름 */}
           <div className="flex flex-col gap-[10px]">
@@ -569,6 +748,7 @@ const SignUpPage = () => {
                     setIsPhoneVerified(false);
                     setVerificationCode("");
                     setVerificationError(null);
+                    setPhoneError(null);
                   }}
                   className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
                 />
@@ -628,6 +808,9 @@ const SignUpPage = () => {
             {verificationError && (
               <div className="text-sm text-red-500">{verificationError}</div>
             )}
+            {phoneError && (
+              <div className="text-sm text-red-500">{phoneError}</div>
+            )}
           </div>
 
           {/* 이메일 */}
@@ -643,12 +826,23 @@ const SignUpPage = () => {
                 type="email"
                 placeholder="이메일 주소 입력"
                 id={emailId}
-                {...register("email")}
+                defaultValue={
+                  isSnsSignUp && snsSignupData?.email ? snsSignupData.email : ""
+                }
+                {...register("email", {
+                  onChange: () => {
+                    // 이메일이 변경되면 에러 초기화
+                    setEmailError(null);
+                  },
+                })}
                 className="w-full text-sm placeholder:text-[#949494] focus:outline-none caret-[#133A1B]"
               />
             </div>
             {errors.email && (
               <div className="text-sm text-red-500">{errors.email.message}</div>
+            )}
+            {emailError && (
+              <div className="text-sm text-red-500">{emailError}</div>
             )}
           </div>
 
@@ -731,6 +925,14 @@ const SignUpPage = () => {
         </button>
       </div>
     </div>
+  );
+};
+
+const SignUpPage = () => {
+  return (
+    <Suspense fallback={<div>로딩 중...</div>}>
+      <SignUpPageContent />
+    </Suspense>
   );
 };
 

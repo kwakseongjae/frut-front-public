@@ -80,7 +80,7 @@ const RefundPage = () => {
           <ChevronLeftIcon />
         </button>
         <div>
-          <h1 className="text-lg font-semibold text-[#262626]">환불 / 반품</h1>
+          <h1 className="text-lg font-semibold text-[#262626]">환불 / 교환</h1>
         </div>
         <div className="w-7" />
       </div>
@@ -123,9 +123,9 @@ const RefundPage = () => {
                           handleRefundRequestClick(item.order_item_id)
                         }
                         className="flex items-center text-xs font-medium text-[#8C8C8C] cursor-pointer"
-                        aria-label="환불 / 반품 신청하기"
+                        aria-label="환불 / 교환 신청하기"
                       >
-                        <span>환불 / 반품 신청하기</span>
+                        <span>환불 / 교환 신청하기</span>
                         <ChevronRightIcon />
                       </button>
                     </div>
@@ -199,7 +199,7 @@ const RefundPage = () => {
         </div>
       </div>
 
-      {/* 환불 / 반품 주의사항 섹션 */}
+      {/* 환불 / 교환 주의사항 섹션 */}
       <div className="flex-1 flex items-end">
         <div className="w-full bg-[#F7F7F7] px-5 py-6">
           <div className="flex items-center gap-2 mb-3">
@@ -207,7 +207,7 @@ const RefundPage = () => {
               <QuestionCircleIcon />
             </div>
             <h3 className="text-base font-semibold text-[#262626]">
-              환불 / 반품 주의사항
+              환불 / 교환 주의사항
             </h3>
           </div>
           <ul className="flex flex-col gap-2 list-disc list-inside ml-4">

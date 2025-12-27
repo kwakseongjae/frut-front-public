@@ -231,15 +231,15 @@ export default function Home() {
 
       {/* 광고 배너 영역 */}
       {isLoadingMainBanners ? (
-        <div className="w-full h-[430px] bg-[#D9D9D9] animate-pulse" />
+        <div className="w-full bg-[#D9D9D9] animate-pulse" style={{ aspectRatio: "24/25" }} />
       ) : mainBanners && mainBanners.length > 0 ? (
         <BannerCarousel
           banners={mainBanners}
-          height="430px"
+          aspectRatio="24/25"
           autoSlideInterval={5000}
         />
       ) : (
-        <div className="w-full h-[430px] relative">
+        <div className="w-full relative" style={{ aspectRatio: "24/25" }}>
           <Image
             src={ad_banner}
             alt="광고 배너"
