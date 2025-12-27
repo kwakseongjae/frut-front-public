@@ -112,15 +112,23 @@ const KakaoCallbackContent = () => {
               errorMessage = registerError.message;
             }
 
+            // 필드별 에러가 있는 경우 sessionStorage에 저장하여 회원가입 페이지로 전달
+            if (fieldErrors && (fieldErrors.phone || fieldErrors.email)) {
+              sessionStorage.setItem(
+                "snsSignupFieldErrors",
+                JSON.stringify(fieldErrors)
+              );
+            }
+
             setError(errorMessage);
 
-            // 에러 발생 시 sessionStorage 정리
+            // 에러 발생 시 sessionStorage 정리 (에러 정보는 제외)
             sessionStorage.removeItem("snsSignupFormData");
             sessionStorage.removeItem("kakao_signup_mode");
             sessionStorage.removeItem("kakao_state");
 
             setTimeout(() => {
-              router.replace("/signup");
+              router.replace("/signup?sns=kakao");
             }, 3000);
           }
           return;
@@ -164,6 +172,7 @@ const KakaoCallbackContent = () => {
               sns_type: "KAKAO" as SnsType,
               code,
               redirect_uri: redirectUri,
+              prepare_token: prepareResult.prepare_token,
               username: prepareResult.username,
               name: prepareResult.name,
               email: prepareResult.email,
@@ -201,7 +210,7 @@ const KakaoCallbackContent = () => {
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [searchParams, router, login]);
 
   if (error) {
     return (

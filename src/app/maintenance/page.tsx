@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface MaintenanceData {
@@ -9,6 +10,7 @@ interface MaintenanceData {
 }
 
 const MaintenancePage = () => {
+  const router = useRouter();
   const [maintenanceData, setMaintenanceData] =
     useState<MaintenanceData | null>(null);
 
@@ -18,13 +20,29 @@ const MaintenancePage = () => {
       const storedData = sessionStorage.getItem("maintenanceData");
       if (storedData) {
         try {
-          setMaintenanceData(JSON.parse(storedData));
+          const data = JSON.parse(storedData);
+          setMaintenanceData(data);
+
+          // 점검 종료 시간 확인
+          const expectedEndTime =
+            data.expected_end_time || "2025-12-25T06:00:00+09:00";
+          const endTime = new Date(expectedEndTime);
+          const now = new Date();
+
+          // 점검이 끝났으면 홈으로 리다이렉트
+          if (now > endTime) {
+            sessionStorage.removeItem("maintenanceData");
+            router.replace("/");
+          }
         } catch (error) {
           console.error("점검 정보 파싱 실패:", error);
         }
+      } else {
+        // 점검 정보가 없으면 홈으로 리다이렉트
+        router.replace("/");
       }
     }
-  }, []);
+  }, [router]);
 
   // 날짜 포맷팅 함수
   const formatDateTime = (dateString: string): string => {
@@ -48,9 +66,7 @@ const MaintenancePage = () => {
   };
 
   const title = maintenanceData?.title || "서버 정기 점검";
-  const message =
-    maintenanceData?.message ||
-    "서버 점검으로 서비스 이용이\n일시적으로 중단되오니 양해 부탁드립니다.";
+  const message = "서버 점검으로 서비스 이용이\n일시적으로 중단되오니 양해 부탁드립니다.";
   const expectedEndTime =
     maintenanceData?.expected_end_time || "2025-12-25T06:00:00+09:00";
 

@@ -98,6 +98,7 @@ const SignUpPageContent = () => {
     code: string;
     redirect_uri?: string;
     state?: string;
+    prepare_token?: string;
     username: string;
     name: string;
     email: string | null;
@@ -115,7 +116,7 @@ const SignUpPageContent = () => {
     mode: "onChange",
   });
 
-  // 소셜 회원가입 데이터 로드
+  // 소셜 회원가입 데이터 로드 및 에러 정보 확인
   useEffect(() => {
     if (isSnsSignUp && typeof window !== "undefined") {
       const storedData = sessionStorage.getItem("snsSignupData");
@@ -138,6 +139,55 @@ const SignUpPageContent = () => {
       } else {
         // 소셜 회원가입 모드인데 데이터가 없으면 일반 회원가입으로 리다이렉트
         router.replace("/signup");
+      }
+
+      // 콜백 페이지에서 전달된 필드별 에러 정보 확인
+      const fieldErrorsStr = sessionStorage.getItem("snsSignupFieldErrors");
+      if (fieldErrorsStr) {
+        try {
+          const fieldErrors = JSON.parse(fieldErrorsStr) as Record<
+            string,
+            string[]
+          >;
+
+          // 전화번호 에러 처리
+          if (fieldErrors.phone) {
+            fieldErrors.phone.forEach((msg) => {
+              if (
+                msg.includes("already exists") ||
+                msg.includes("이미 사용") ||
+                msg.includes("사용 중")
+              ) {
+                setPhoneError("이미 사용 중인 전화번호입니다.");
+              } else if (msg.includes("인증이 필요")) {
+                setPhoneError("전화번호 인증이 필요합니다.");
+              } else {
+                setPhoneError(`전화번호: ${msg}`);
+              }
+            });
+          }
+
+          // 이메일 에러 처리
+          if (fieldErrors.email) {
+            fieldErrors.email.forEach((msg) => {
+              if (
+                msg.includes("already exists") ||
+                msg.includes("이미 사용") ||
+                msg.includes("사용 중")
+              ) {
+                setEmailError("이미 사용 중인 이메일입니다.");
+              } else {
+                setEmailError(`이메일: ${msg}`);
+              }
+            });
+          }
+
+          // 에러 정보 사용 후 삭제
+          sessionStorage.removeItem("snsSignupFieldErrors");
+        } catch (error) {
+          console.error("필드 에러 정보 파싱 실패:", error);
+          sessionStorage.removeItem("snsSignupFieldErrors");
+        }
       }
     }
   }, [isSnsSignUp, router]);
@@ -352,13 +402,45 @@ const SignUpPageContent = () => {
 
     try {
       if (isSnsSignUp && snsSignupData) {
-        // 소셜 회원가입
-        // API 명세에 따르면 prepare에서 사용한 code는 재사용 불가하므로,
-        // 새로운 authorization_code를 받기 위해 SNS 로그인을 다시 수행해야 함
-        // 회원가입 데이터를 sessionStorage에 저장하고 SNS 로그인으로 리다이렉트
-        const signupFormData = {
-          sns_type: snsSignupData.sns_type,
-          redirect_uri: snsSignupData.redirect_uri,
+        // 소셜 회원가입 - 현재 페이지에서 직접 처리
+        setPhoneError(null);
+        setEmailError(null);
+        setSignUpError(null);
+
+        // prepare_token이 있으면 사용하고, 없으면 prepare 호출
+        let prepareToken: string;
+
+        if (snsSignupData.prepare_token) {
+          // 이미 prepare_token이 있으면 사용
+          prepareToken = snsSignupData.prepare_token;
+        } else {
+          // prepare_token이 없으면 prepare 호출하여 획득
+          if (!snsSignupData.code) {
+            setSignUpError("인증 정보가 없습니다. 다시 시도해주세요.");
+            setIsSigningUp(false);
+            return;
+          }
+
+          const prepareRequest =
+            snsSignupData.sns_type === "KAKAO"
+              ? {
+                  sns_type: "KAKAO" as SnsType,
+                  code: snsSignupData.code,
+                  redirect_uri: snsSignupData.redirect_uri || "",
+                }
+              : {
+                  sns_type: "NAVER" as SnsType,
+                  code: snsSignupData.code,
+                  state: snsSignupData.state || "",
+                };
+
+          const prepareResult = await snsAuthApi.prepare(prepareRequest);
+          prepareToken = prepareResult.prepare_token;
+        }
+
+        // register 호출
+        await snsAuthApi.register({
+          prepare_token: prepareToken,
           name: name.trim(),
           phone: phoneNumber,
           email:
@@ -366,60 +448,14 @@ const SignUpPageContent = () => {
             snsSignupData.email ||
             undefined,
           marketing_agreed: agreements.marketing === true,
-        };
+        });
 
-        // 회원가입 폼 데이터 저장 (새로운 code를 받은 후 사용)
-        sessionStorage.setItem(
-          "snsSignupFormData",
-          JSON.stringify(signupFormData)
-        );
+        // 회원가입 성공 시 sessionStorage 정리
+        sessionStorage.removeItem("snsSignupData");
+        sessionStorage.removeItem("snsSignupFieldErrors");
 
-        // SNS 로그인 재수행하여 새로운 authorization_code 획득
-        if (snsSignupData.sns_type === "KAKAO") {
-          const clientId = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID;
-          const redirectUri = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || "";
-
-          if (!clientId || !redirectUri) {
-            setSignUpError("카카오 로그인 설정이 올바르지 않습니다.");
-            setIsSigningUp(false);
-            return;
-          }
-
-          // CSRF 방지를 위한 state 생성
-          const state =
-            Math.random().toString(36).substring(2, 15) +
-            Math.random().toString(36).substring(2, 15);
-          sessionStorage.setItem("kakao_state", state);
-          sessionStorage.setItem("kakao_signup_mode", "true");
-
-          const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-            redirectUri
-          )}&response_type=code&state=${state}`;
-          window.location.href = kakaoAuthUrl;
-          return;
-        } else if (snsSignupData.sns_type === "NAVER") {
-          const clientId = process.env.NEXT_PUBLIC_NAVER_CLIENT_ID;
-          const redirectUri = process.env.NEXT_PUBLIC_NAVER_CALLBACK_URL || "";
-
-          if (!clientId || !redirectUri) {
-            setSignUpError("네이버 로그인 설정이 올바르지 않습니다.");
-            setIsSigningUp(false);
-            return;
-          }
-
-          // CSRF 방지를 위한 state 생성
-          const state =
-            Math.random().toString(36).substring(2, 15) +
-            Math.random().toString(36).substring(2, 15);
-          sessionStorage.setItem("naver_state", state);
-          sessionStorage.setItem("naver_signup_mode", "true");
-
-          const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-            redirectUri
-          )}&state=${state}`;
-          window.location.href = naverAuthUrl;
-          return;
-        }
+        // 회원가입 완료 페이지로 이동
+        router.push("/signup/complete");
       } else {
         // 일반 회원가입
         // 아이디 중복 확인이 완료되지 않았거나 사용 불가능한 경우

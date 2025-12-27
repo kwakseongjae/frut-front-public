@@ -110,15 +110,23 @@ const NaverCallbackContent = () => {
               errorMessage = registerError.message;
             }
 
+            // 필드별 에러가 있는 경우 sessionStorage에 저장하여 회원가입 페이지로 전달
+            if (fieldErrors && (fieldErrors.phone || fieldErrors.email)) {
+              sessionStorage.setItem(
+                "snsSignupFieldErrors",
+                JSON.stringify(fieldErrors)
+              );
+            }
+
             setError(errorMessage);
 
-            // 에러 발생 시 sessionStorage 정리
+            // 에러 발생 시 sessionStorage 정리 (에러 정보는 제외)
             sessionStorage.removeItem("snsSignupFormData");
             sessionStorage.removeItem("naver_signup_mode");
             sessionStorage.removeItem("naver_state");
 
             setTimeout(() => {
-              router.replace("/signup");
+              router.replace("/signup?sns=naver");
             }, 3000);
           }
           return;
@@ -162,6 +170,7 @@ const NaverCallbackContent = () => {
               sns_type: "NAVER" as SnsType,
               code,
               state,
+              prepare_token: prepareResult.prepare_token,
               username: prepareResult.username,
               name: prepareResult.name,
               email: prepareResult.email,
@@ -199,7 +208,7 @@ const NaverCallbackContent = () => {
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [searchParams, router, login]);
 
   if (error) {
     return (
